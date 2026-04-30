@@ -17,15 +17,20 @@ def test_jsonpath_rfc9535_returns_value_location_and_normalized_path() -> None:
 
 
 def test_project_imports_public_symbols() -> None:
-    assert {
+    assert set(xvalidations.__all__) == {
         "ExportedSchemaError",
         "InvalidRuleError",
         "JsonPathError",
         "ResolveError",
         "ValidationIssue",
+        "XValidatedModel",
+        "XValidationContext",
         "XValidationError",
         "XValidationRule",
-    } <= set(xvalidations.__all__)
+        "export_schema",
+        "xvalidate",
+        "xvalidation",
+    }
 
 
 def test_package_layout_has_no_src_directory() -> None:
