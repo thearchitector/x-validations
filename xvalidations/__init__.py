@@ -10,6 +10,7 @@ from xvalidations.errors import (
 )
 from xvalidations.models import ValidationIssue, XValidationRule
 from xvalidations.pydantic import XValidatedModel, export_schema
+from xvalidations.runtime import xvalidate
 
 __all__ = [
     "ExportedSchemaError",
@@ -22,5 +23,6 @@ __all__ = [
     "XValidationRule",
     "XValidatedModel",
     "export_schema",
+    "xvalidate",
     "xvalidation",
 ]
