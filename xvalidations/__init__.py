@@ -1,5 +1,6 @@
 """Public package exports."""
 
+from xvalidations.authoring import XValidationContext, xvalidation
 from xvalidations.errors import (
     ExportedSchemaError,
     InvalidRuleError,
@@ -15,6 +16,8 @@ __all__ = [
     "JsonPathError",
     "ResolveError",
     "ValidationIssue",
+    "XValidationContext",
     "XValidationError",
     "XValidationRule",
+    "xvalidation",
 ]
