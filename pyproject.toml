@@ -82,4 +82,5 @@ dev = [
     "pytest-crap>=0.3.0",
     "ruff>=0.15.12",
     "skylos>=4.9.0",
+    "types-jsonschema>=4.26.0.20260408",
 ]
