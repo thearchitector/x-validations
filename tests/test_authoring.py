@@ -1,3 +1,5 @@
+from operator import eq
+
 import pytest
 
 from xvalidations.authoring import (
@@ -21,13 +23,13 @@ from xvalidations.authoring import (
         pytest.param(lambda x: x.path["primary-tag"], '$["primary-tag"]', id="bracket"),
         pytest.param(lambda x: x.path.tags.each(), "$.tags[*]", id="each"),
         pytest.param(lambda x: x.path.tags.at(0), "$.tags[0]", id="index"),
-        pytest.param(lambda x: x.path.tags.slice(0, 10, 2), "$.tags[0:10:2]", id="slice"),
+        pytest.param(
+            lambda x: x.path.tags.slice(0, 10, 2), "$.tags[0:10:2]", id="slice"
+        ),
         pytest.param(lambda x: x.path.desc("field_id"), "$..field_id", id="desc"),
     ],
 )
-def test_path_shortcuts_serialize_to_jsonpath(
-    path: object, expected: str
-) -> None:
+def test_path_shortcuts_serialize_to_jsonpath(path: object, expected: str) -> None:
     x = XValidationContext()
 
     assert path(x).to_jsonpath() == expected
@@ -59,7 +61,7 @@ def test_filter_rejects_non_json_scalar_rhs() -> None:
     x = XValidationContext()
 
     with pytest.raises(TypeError):
-        x.this.kind == {"kind": "field"}
+        eq(x.this.kind, {"kind": "field"})
 
 
 def test_select_without_selectors_raises_type_error() -> None:
@@ -89,11 +91,13 @@ def test_resolve_allows_plain_non_path_string_constant() -> None:
 
 
 def test_xvalidation_attaches_rule_declaration_to_function() -> None:
-    @xvalidation(id="primary-tag-exists", description="Primary tag must be present in tags.")
+    @xvalidation(
+        id="primary-tag-exists", description="Primary tag must be present in tags."
+    )
     def primary_tag_exists(x: XValidationContext) -> AuthoredRule:
-        return x.target(x.path.primary_tag).assert_schema(
-            {"enum": x.resolve(x.path.tags.each())}
-        )
+        return x.target(x.path.primary_tag).assert_schema({
+            "enum": x.resolve(x.path.tags.each())
+        })
 
     declaration = primary_tag_exists.__xvalidation_declaration__
 
