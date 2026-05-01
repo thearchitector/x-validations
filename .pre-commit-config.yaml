@@ -1,6 +1,6 @@
 repos:
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.2
+      rev: v0.15.12
       hooks:
           - id: ruff-check
             args:
@@ -22,11 +22,12 @@ repos:
           - id: skylos
             name: skylos
             language: system
-            entry: uv run skylos . --quality --trace --coverage --llm --exclude-folder tests --danger
+            entry: uv run skylos . --quality --trace --coverage --pytest-fixtures --gate --llm
             types: [python]
             exclude: ^tests/
             require_serial: true
             pass_filenames: false
+            verbose: true
     - repo: https://github.com/pre-commit/pre-commit-hooks
       rev: v6.0.0
       hooks:

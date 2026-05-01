@@ -192,25 +192,30 @@ class XValidationContext:
     path: Path = field(default_factory=Path)
     this: Expr = field(default_factory=Expr)
 
-    def key(self, name: str) -> KeySelector:
+    @staticmethod
+    def key(name: str) -> KeySelector:
         """Create a key selector."""
         return key(name)
 
-    def wildcard(self) -> WildcardSelector:
+    @staticmethod
+    def wildcard() -> WildcardSelector:
         """Create a wildcard selector."""
         return wildcard()
 
-    def index(self, index: int) -> IndexSelector:
+    @staticmethod
+    def index(index: int) -> IndexSelector:
         """Create an index selector."""
         return index_selector(index)
 
+    @staticmethod
     def slice(
-        self, start: int | None = None, stop: int | None = None, step: int | None = None
+        start: int | None = None, stop: int | None = None, step: int | None = None
     ) -> SliceSelector:
         """Create a slice selector."""
         return slice_selector(start, stop, step)
 
-    def filter(self, predicate: Comparison) -> FilterSelector:
+    @staticmethod
+    def filter(predicate: Comparison) -> FilterSelector:
         """Create a filter selector."""
         return filter_selector(predicate)
 
@@ -321,17 +326,19 @@ def _serialize_recursive_segment(selectors: tuple[Selector, ...]) -> str:
 
 def _serialize_selector(selector: Selector) -> str:
     if isinstance(selector, KeySelector):
-        return f"[{json.dumps(selector.name)}]"
-    if isinstance(selector, WildcardSelector):
-        return "[*]"
-    if isinstance(selector, IndexSelector):
-        return f"[{selector.index}]"
-    if isinstance(selector, SliceSelector):
-        return f"[{_serialize_slice(selector)}]"
-    if isinstance(selector, FilterSelector):
-        return f"[?({predicate_to_jsonpath(selector.predicate)})]"
-    msg = f"unsupported selector: {selector!r}"
-    raise TypeError(msg)
+        serialized = f"[{json.dumps(selector.name)}]"
+    elif isinstance(selector, WildcardSelector):
+        serialized = "[*]"
+    elif isinstance(selector, IndexSelector):
+        serialized = f"[{selector.index}]"
+    elif isinstance(selector, SliceSelector):
+        serialized = f"[{_serialize_slice(selector)}]"
+    elif isinstance(selector, FilterSelector):
+        serialized = f"[?({predicate_to_jsonpath(selector.predicate)})]"
+    else:
+        msg = f"unsupported selector: {selector!r}"
+        raise TypeError(msg)
+    return serialized
 
 
 def _serialize_union_selector(selector: Selector) -> str:

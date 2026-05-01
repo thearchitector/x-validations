@@ -1,8 +1,11 @@
-.venv/
-.pytest_cache/
-.skylos/
-.skylos_trace
-.coverage
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
 __pycache__/
-*.py[cod]
+
 dist/
+
+test.py
+.skylos*
+.coverage

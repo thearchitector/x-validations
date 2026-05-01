@@ -1613,13 +1613,12 @@ dependencies = [
     { name = "jsonpath-rfc9535" },
     { name = "jsonschema" },
     { name = "pydantic" },
-    { name = "referencing" },
-    { name = "typer" },
 ]
 
 [package.optional-dependencies]
 codegen = [
     { name = "datamodel-code-generator" },
+    { name = "typer" },
 ]
 
 [package.dev-dependencies]
@@ -1641,8 +1640,7 @@ requires-dist = [
     { name = "jsonpath-rfc9535", specifier = ">=1.0.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "pydantic", specifier = ">=2.13.3" },
-    { name = "referencing", specifier = ">=0.37.0" },
-    { name = "typer", specifier = ">=0.25.1" },
+    { name = "typer", marker = "extra == 'codegen'", specifier = ">=0.25.1" },
 ]
 provides-extras = ["codegen"]
 

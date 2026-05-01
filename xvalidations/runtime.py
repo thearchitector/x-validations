@@ -103,16 +103,17 @@ def _canonical_model_dump(model: BaseModel) -> "JsonValue":
 def _rule_id_from_schema_path(
     schema_path: tuple[Any, ...], branch_rule_ids: list[str] | None
 ) -> str | None:
-    if branch_rule_ids is None:
-        return None
-    try:
+    rule_id = None
+    if branch_rule_ids is not None and "allOf" in schema_path:
         all_of_index = schema_path.index("allOf")
-        branch_index = schema_path[all_of_index + 1]
-    except ValueError, IndexError:
-        return None
-    if isinstance(branch_index, int) and 0 <= branch_index < len(branch_rule_ids):
-        return branch_rule_ids[branch_index]
-    return None
+        branch_index_location = all_of_index + 1
+        if branch_index_location < len(schema_path):
+            branch_index = schema_path[branch_index_location]
+            if isinstance(branch_index, int) and 0 <= branch_index < len(
+                branch_rule_ids
+            ):
+                rule_id = branch_rule_ids[branch_index]
+    return rule_id
 
 
 def _location_to_jsonpath(location: tuple[Any, ...]) -> str:

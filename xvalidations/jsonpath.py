@@ -1,7 +1,7 @@
 """JSONPath helpers."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from jsonpath_rfc9535 import find
 
@@ -39,7 +39,7 @@ def evaluate_jsonpath(query: str, value: "JsonValue") -> list[JsonPathMatch]:
             JsonPathMatch(
                 value=cast("JsonValue", raw_match.value),
                 location=location,
-                normalized_path=cast("Any", raw_match).path(),
+                normalized_path=raw_match.path(),
             )
         )
     return matches

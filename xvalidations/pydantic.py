@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+from dataclasses import dataclass
 from types import UnionType
 from typing import (
     TYPE_CHECKING,
@@ -16,7 +17,7 @@ from typing import (
 )
 
 from pydantic import BaseModel
-from pydantic.aliases import AliasChoices, AliasPath
+from pydantic.aliases import AliasChoices
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema
 
 from xvalidations.authoring import (
@@ -30,7 +31,7 @@ from xvalidations.authoring import (
     key,
 )
 from xvalidations.errors import InvalidRuleError
-from xvalidations.models import XValidationRule
+from xvalidations.models import JsonValue, XValidationRule
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
@@ -38,11 +39,17 @@ if TYPE_CHECKING:
     from pydantic.json_schema import JsonSchemaMode
 
     from xvalidations.authoring import Selector
-    from xvalidations.models import JsonValue
-
 
 type LiteralUnionFormat = Literal["any_of", "primitive_type_array"]
 type ExportMode = Literal["validation", "serialization"]
+type DefsMap = dict[str, JsonValue]
+
+
+@dataclass(frozen=True)
+class _ExportContext:
+    defs: DefsMap
+    by_alias: bool
+    mode: ExportMode
 
 
 class XValidatedModel(BaseModel):
@@ -68,7 +75,7 @@ class XValidatedModel(BaseModel):
     @classmethod
     def model_json_schema(
         cls,
-        by_alias: bool = True,
+        by_alias: bool = True,  # noqa: SKY-L029
         ref_template: str = DEFAULT_REF_TEMPLATE,
         schema_generator: type[GenerateJsonSchema] = GenerateJsonSchema,
         mode: "JsonSchemaMode" = "validation",
@@ -89,6 +96,7 @@ class XValidatedModel(BaseModel):
 def export_schema(
     model_cls: type[BaseModel],
     base_schema: "Mapping[str, Any] | None" = None,
+    *,
     by_alias: bool = True,
     mode: "JsonSchemaMode" = "validation",
 ) -> dict[str, Any]:
@@ -101,23 +109,21 @@ def export_schema(
     else:
         copied = copy.deepcopy(dict(base_schema))
 
-    defs: "dict[str, JsonValue]" = _copy_defs(copied)
+    defs: DefsMap = _copy_defs(copied)
     rules: list[XValidationRule] = []
     seen_rule_ids: set[str] = set()
 
     export_mode: ExportMode = mode
-    for prefix, visited_model in iter_xvalidated_models(
-        model_cls, by_alias=by_alias, mode=export_mode
+    context = _ExportContext(defs=defs, by_alias=by_alias, mode=export_mode)
+    for prefix, visited_model, declaration in _iter_xvalidation_declarations(
+        model_cls, context
     ):
-        for declaration in visited_model.__xvalidation_declarations__:
-            rule = _compile_declaration(
-                declaration, prefix, visited_model, by_alias, export_mode, defs
-            )
-            if rule.id in seen_rule_ids:
-                msg = f"duplicate x-validation rule id: {rule.id}"
-                raise InvalidRuleError(msg)
-            seen_rule_ids.add(rule.id)
-            rules.append(rule)
+        rule = _compile_declaration(declaration, prefix, visited_model, context)
+        if rule.id in seen_rule_ids:
+            msg = f"duplicate x-validation rule id: {rule.id}"
+            raise InvalidRuleError(msg)
+        seen_rule_ids.add(rule.id)
+        rules.append(rule)
 
     if defs:
         copied["$defs"] = defs
@@ -134,100 +140,109 @@ def export_schema(
     return copied
 
 
-def definition_name(value: "JsonValue") -> str:
+def definition_name(value: JsonValue) -> str:
     """Return a deterministic generated definition name for a JSON value."""
     dumped = _stable_json(value)
     digest = hashlib.sha256(dumped.encode()).hexdigest()[:12]
     return f"xv_{digest}"
 
 
-def replace_markers(
-    node: Any, prefix: Path, defs: "dict[str, JsonValue]"
-) -> "JsonValue":
-    """Replace resolve markers with exported resolve objects."""
-    return _replace_markers(node, prefix, defs, None, True, "validation")
+def _replace_resolve_marker(
+    marker: ResolveMarker,
+    prefix: Path,
+    model_cls: type[BaseModel] | None,
+    context: _ExportContext,
+) -> JsonValue:
+    value = marker.value
+    if isinstance(value, Path):
+        local_path = (
+            _alias_path_for_model(
+                value, model_cls, by_alias=context.by_alias, mode=context.mode
+            )
+            if model_cls is not None
+            else value
+        )
+        return {"$resolve": _join_paths(prefix, local_path).to_jsonpath()}
+
+    name = definition_name(value)
+    context.defs.setdefault(name, value)
+    return {"$resolve": f"#/$defs/{_escape_json_pointer_token(name)}"}
 
 
 def _replace_markers(
-    node: Any,
-    prefix: Path,
-    defs: "dict[str, JsonValue]",
-    model_cls: type[BaseModel] | None,
-    by_alias: bool,
-    mode: ExportMode,
-) -> "JsonValue":
+    node: Any, prefix: Path, model_cls: type[BaseModel] | None, context: _ExportContext
+) -> JsonValue:
     if isinstance(node, ResolveMarker):
-        value = node.value
-        if isinstance(value, Path):
-            local_path = (
-                _alias_path_for_model(value, model_cls, by_alias, mode)
-                if model_cls is not None
-                else value
-            )
-            return {"$resolve": _join_paths(prefix, local_path).to_jsonpath()}
-        constant = value
-        name = definition_name(constant)
-        defs.setdefault(name, constant)
-        return {"$resolve": f"#/$defs/{_escape_json_pointer_token(name)}"}
+        return _replace_resolve_marker(node, prefix, model_cls, context)
     if isinstance(node, dict):
         return {
-            str(key): _replace_markers(value, prefix, defs, model_cls, by_alias, mode)
+            str(key): _replace_markers(value, prefix, model_cls, context)
             for key, value in node.items()
         }
     if isinstance(node, list):
-        return [
-            _replace_markers(value, prefix, defs, model_cls, by_alias, mode)
-            for value in node
-        ]
+        return [_replace_markers(value, prefix, model_cls, context) for value in node]
     return cast("JsonValue", node)
 
 
 def iter_xvalidated_models(
-    root: type[BaseModel], by_alias: bool = True, mode: ExportMode = "validation"
-) -> "Iterator[tuple[Path, type[XValidatedModel]]]":
+    root: type[BaseModel], *, by_alias: bool = True, mode: ExportMode = "validation"
+) -> Iterator[tuple[Path, type[XValidatedModel]]]:
     """Yield reachable x-validated model classes and their root prefixes."""
     active: set[type[BaseModel]] = set()
-    yield from _iter_xvalidated_models(root, Path(), by_alias, mode, active)
+    yield from _iter_xvalidated_models(
+        root, Path(), by_alias=by_alias, mode=mode, active=active
+    )
+
+
+def _iter_xvalidation_declarations(
+    root: type[BaseModel], context: _ExportContext
+) -> Iterator[tuple[Path, type[XValidatedModel], XValidationDeclaration]]:
+    for prefix, visited_model in iter_xvalidated_models(
+        root, by_alias=context.by_alias, mode=context.mode
+    ):
+        yield from (
+            (prefix, visited_model, declaration)
+            for declaration in visited_model.__xvalidation_declarations__
+        )
 
 
 def _compile_declaration(
     declaration: XValidationDeclaration,
     prefix: Path,
     model_cls: type[BaseModel],
-    by_alias: bool,
-    mode: ExportMode,
-    defs: "dict[str, JsonValue]",
+    context: _ExportContext,
 ) -> XValidationRule:
     authored = declaration.factory(XValidationContext())
     if not isinstance(authored, AuthoredRule):
         msg = f"x-validation rule {declaration.id!r} did not return authored rule data"
         raise InvalidRuleError(msg)
 
-    target = _alias_path_for_model(authored.target, model_cls, by_alias, mode)
+    target = _alias_path_for_model(
+        authored.target, model_cls, by_alias=context.by_alias, mode=context.mode
+    )
     return XValidationRule.model_validate({
         "id": declaration.id,
         "description": declaration.description,
         "target": _join_paths(prefix, target).to_jsonpath(),
-        "assert": _replace_markers(
-            authored.assert_, prefix, defs, model_cls, by_alias, mode
-        ),
+        "assert": _replace_markers(authored.assert_, prefix, model_cls, context),
     })
 
 
-def _copy_defs(schema: dict[str, Any]) -> "dict[str, JsonValue]":
+def _copy_defs(schema: dict[str, Any]) -> DefsMap:
     raw_defs = schema.get("$defs")
     if isinstance(raw_defs, dict):
-        return cast("dict[str, JsonValue]", copy.deepcopy(raw_defs))
+        return cast("DefsMap", copy.deepcopy(raw_defs))
     return {}
 
 
 def _iter_xvalidated_models(
     model_cls: type[BaseModel],
     prefix: Path,
+    *,
     by_alias: bool,
     mode: ExportMode,
     active: set[type[BaseModel]],
-) -> "Iterator[tuple[Path, type[XValidatedModel]]]":
+) -> Iterator[tuple[Path, type[XValidatedModel]]]:
     if model_cls in active:
         return
     active.add(model_cls)
@@ -236,33 +251,39 @@ def _iter_xvalidated_models(
         if issubclass(model_cls, XValidatedModel):
             yield prefix, model_cls
 
-        for field_name, field_info in model_cls.model_fields.items():
-            export_name = _field_export_name(field_name, field_info, by_alias, mode)
-            field_prefix = prefix.select(key(export_name))
-            for nested_model, nested_prefix in _model_types_from_annotation(
-                field_info.annotation, field_prefix
-            ):
-                yield from _iter_xvalidated_models(
-                    nested_model, nested_prefix, by_alias, mode, active
-                )
+        for nested_model, nested_prefix in _iter_field_model_types(
+            model_cls, prefix, by_alias=by_alias, mode=mode
+        ):
+            yield from _iter_xvalidated_models(
+                nested_model, nested_prefix, by_alias=by_alias, mode=mode, active=active
+            )
     finally:
         active.remove(model_cls)
 
 
+def _iter_field_model_types(
+    model_cls: type[BaseModel], prefix: Path, *, by_alias: bool, mode: ExportMode
+) -> Iterator[tuple[type[BaseModel], Path]]:
+    for field_name, field_info in model_cls.model_fields.items():
+        export_name = _field_export_name(
+            field_name, field_info, by_alias=by_alias, mode=mode
+        )
+        field_prefix = prefix.select(key(export_name))
+        yield from _model_types_from_annotation(field_info.annotation, field_prefix)
+
+
 def _model_types_from_annotation(
     annotation: Any, prefix: Path
-) -> "Iterator[tuple[type[BaseModel], Path]]":
+) -> Iterator[tuple[type[BaseModel], Path]]:
     origin = get_origin(annotation)
     args = get_args(annotation)
 
     if origin is None:
-        if _is_model_type(annotation):
-            yield annotation, prefix
+        yield from _model_type_from_plain_annotation(annotation, prefix)
         return
 
     if origin is Union or origin is UnionType:
-        for arg in args:
-            yield from _model_types_from_annotation(arg, prefix)
+        yield from _model_types_from_args(args, prefix)
         return
 
     if str(origin) == "<class 'typing.Annotated'>":
@@ -275,12 +296,25 @@ def _model_types_from_annotation(
             yield from _model_types_from_annotation(args[0], prefix.each())
         return
 
+    yield from _model_types_from_args(args, prefix)
+
+
+def _model_type_from_plain_annotation(
+    annotation: Any, prefix: Path
+) -> Iterator[tuple[type[BaseModel], Path]]:
+    if _is_model_type(annotation):
+        yield annotation, prefix
+
+
+def _model_types_from_args(
+    args: tuple[Any, ...], prefix: Path
+) -> Iterator[tuple[type[BaseModel], Path]]:
     for arg in args:
         yield from _model_types_from_annotation(arg, prefix)
 
 
 def _field_export_name(
-    field_name: str, field_info: Any, by_alias: bool, mode: ExportMode
+    field_name: str, field_info: Any, *, by_alias: bool, mode: ExportMode
 ) -> str:
     if not by_alias:
         return field_name
@@ -296,13 +330,11 @@ def _field_export_name(
         return alias
     if isinstance(alias, AliasChoices):
         return _field_export_name_from_alias_choices(alias, field_name)
-    if isinstance(alias, AliasPath):
-        return field_name
     return field_name
 
 
 def _alias_path_for_model(
-    path: Path, model_cls: type[BaseModel], by_alias: bool, mode: ExportMode
+    path: Path, model_cls: type[BaseModel], *, by_alias: bool, mode: ExportMode
 ) -> Path:
     if not by_alias:
         return path
@@ -319,7 +351,11 @@ def _alias_path_for_model(
                 if field_info is not None:
                     segment_had_model_key = True
                     selectors.append(
-                        key(_field_export_name(selector.name, field_info, True, mode))
+                        key(
+                            _field_export_name(
+                                selector.name, field_info, by_alias=True, mode=mode
+                            )
+                        )
                     )
                     next_model = _first_model_from_annotation(field_info.annotation)
                     continue
@@ -342,7 +378,7 @@ def _field_export_name_from_alias_choices(alias: AliasChoices, fallback: str) ->
 
 
 def _first_model_from_annotation(annotation: Any) -> type[BaseModel] | None:
-    for model_cls, _prefix in _model_types_from_annotation(annotation, Path()):
+    for model_cls, _ in _model_types_from_annotation(annotation, Path()):
         return model_cls
     return None
 
