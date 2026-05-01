@@ -1,7 +1,7 @@
 [project]
-name = "x-validations"
+name = "xvalidations"
 version = "0.1.0"
-description = "Add your description here"
+description = "Extra validations in your Pydantic models for better self-describing JSON schemata."
 requires-python = ">=3.14"
 dependencies = [
     "jsonpath-rfc9535>=1.0.0",
@@ -20,15 +20,15 @@ xvalidations-codegen = "xvalidations.codegen:main"
 
 [dependency-groups]
 dev = [
-    "mypy>=1.20.2",
-    "prek>=0.3.11",
+    "mypy",
+    "prek",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
-    "pytest-cov>=7.1.0",
-    "pytest-crap>=0.3.0",
-    "ruff>=0.15.12",
-    "skylos>=4.9.0",
-    "types-jsonschema>=4.26.0.20260408",
+    "pytest-cov",
+    "pytest-crap",
+    "ruff",
+    "skylos",
+    "types-jsonschema",
 ]
 
 [tool.pytest.ini_options]

@@ -12,7 +12,7 @@ repos:
           - id: mypy
             name: mypy
             language: system
-            entry: uv run mypy xvalidations
+            entry: uv run mypy .
             types: [python]
             exclude: ^tests/
             require_serial: true
