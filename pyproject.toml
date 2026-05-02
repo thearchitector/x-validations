@@ -82,7 +82,7 @@ preview = true
 [tool.skylos]
 nesting = 4
 exclude = ["tests", ".ruff_cache"]
-ignore = ["SKY-L027", "SKY-Q701", "SKY-Q802", "SKY-Q803"]
+# ignore = ["SKY-L027", "SKY-Q701", "SKY-Q802", "SKY-Q803"]
 
 [tool.skylos.gate]
 strict = true

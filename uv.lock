@@ -1346,7 +1346,7 @@ wheels = [
 
 [[package]]
 name = "skylos"
-version = "4.9.0"
+version = "4.10.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ca9" },
@@ -1367,9 +1367,9 @@ dependencies = [
     { name = "tree-sitter-rust" },
     { name = "tree-sitter-typescript" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3d/ea/e7297d3711e9347dbbf4088127409b37006d8e690effc241bc29e1c57440/skylos-4.9.0.tar.gz", hash = "sha256:58c4cfb49bf0c8fb52df775a3d01c82792254efa4f34f709797840ec08231228", size = 877682, upload-time = "2026-04-30T06:11:06.25Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/0e/b8394d2593f5138a3d17ed4913c5a6fc3669d29e94625338575df5d2789d/skylos-4.10.0.tar.gz", hash = "sha256:df436bf2a8666fe4ed30c7581ece140c10ef634847cda3561243cbb9fbe0de85", size = 897155, upload-time = "2026-05-02T03:00:51.797Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/7e/046c238c6440e74b93a2da501b48cb2c09bab466c68d3602b16271993e6d/skylos-4.9.0-py3-none-any.whl", hash = "sha256:746425b0e6b4456a6873e89670079be33aae9e174570a3491291b538e4be80b7", size = 661921, upload-time = "2026-04-30T06:11:04.836Z" },
+    { url = "https://files.pythonhosted.org/packages/76/9e/62d66054f3d5f3ac073139324dc9632bb74f24bfc986873ee74d1fab443d/skylos-4.10.0-py3-none-any.whl", hash = "sha256:3272a06e54153f3199133df3b606f22b47a7e11d1c88d89892881362f3f12013", size = 675691, upload-time = "2026-05-02T03:00:50.452Z" },
 ]
 
 [[package]]
@@ -1598,11 +1598,11 @@ wheels = [
 
 [[package]]
 name = "wcwidth"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/35/a2/8e3becb46433538a38726c948d3399905a4c7cabd0df578ede5dc51f0ec2/wcwidth-0.6.0.tar.gz", hash = "sha256:cdc4e4262d6ef9a1a57e018384cbeb1208d8abbc64176027e2c2455c81313159", size = 159684, upload-time = "2026-02-06T19:19:40.919Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/ee/afaf0f85a9a18fe47a67f1e4422ed6cf1fe642f0ae0a2f81166231303c52/wcwidth-0.7.0.tar.gz", hash = "sha256:90e3a7ea092341c44b99562e75d09e4d5160fe7a3974c6fb842a101a95e7eed0", size = 182132, upload-time = "2026-05-02T16:04:12.653Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/68/5a/199c59e0a824a3db2b89c5d2dade7ab5f9624dbf6448dc291b46d5ec94d3/wcwidth-0.6.0-py3-none-any.whl", hash = "sha256:1a3a1e510b553315f8e146c54764f4fb6264ffad731b3d78088cdb1478ffbdad", size = 94189, upload-time = "2026-02-06T19:19:39.646Z" },
+    { url = "https://files.pythonhosted.org/packages/41/52/e465037f5375f43533d1a80b6923955201596a99142ed524d77b571a1418/wcwidth-0.7.0-py3-none-any.whl", hash = "sha256:5d69154c429a82910e241c738cd0e2976fac8a2dd47a1a805f4afed1c0f136f2", size = 110825, upload-time = "2026-05-02T16:04:11.033Z" },
 ]
 
 [[package]]
