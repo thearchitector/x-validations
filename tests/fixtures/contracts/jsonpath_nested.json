@@ -1,0 +1,41 @@
+{
+  "schema": {
+    "$schema": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {"type": "string"},
+            "id": {"type": "string"},
+            "primary": {"type": "string"},
+            "tags": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "x-validations": [
+      {
+        "id": "item-primary-in-tags",
+        "description": "Each field primary must be in field tags.",
+        "target": "$.items[?(@.kind == \"field\")].primary",
+        "assert": {
+          "enum": {"$resolve": "$.items[?(@.kind == \"field\")].tags[*]"}
+        }
+      }
+    ]
+  },
+  "payload": {
+    "items": [
+      {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
+      {"kind": "field", "id": "b", "primary": "red", "tags": ["green"]}
+    ]
+  },
+  "expected_issue": {
+    "path": "$.items[1].primary",
+    "source": "x-validation",
+    "rule_id": "item-primary-in-tags"
+  }
+}
