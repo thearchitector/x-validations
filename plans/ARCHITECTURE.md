@@ -746,6 +746,13 @@ Exported-schema errors are different from validation errors and should raise exc
 
 Those conditions indicate a broken exported schema, not bad user input.
 
+## Build Commands
+
+```bash
+uv run maturin develop
+wasm-pack build crates/xvalidations-js --target web --out-dir pkg
+```
+
 ## Package Layout
 
 Recommended v1 layout:
