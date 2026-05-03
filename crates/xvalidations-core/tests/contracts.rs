@@ -33,6 +33,10 @@ fn contract_fixtures_validate_in_rust_core() {
             let XValidationFailure::Validation { issues } = failure else {
                 panic!("expected validation failure for {path:?}");
             };
+            assert!(
+                !issues.is_empty(),
+                "base-invalid payload should report issues"
+            );
             assert!(issues
                 .iter()
                 .all(|issue| issue.source == IssueSource::Base && issue.rule_id.is_none()));
@@ -49,11 +53,26 @@ fn contract_fixtures_validate_in_rust_core() {
             let XValidationFailure::Validation { issues } = failure else {
                 panic!("expected validation failure for {path:?}");
             };
-            assert!(issues.iter().any(|issue| {
-                issue.path == expected_issue["path"]
-                    && issue.source == IssueSource::XValidation
-                    && issue.rule_id.as_deref() == expected_issue["rule_id"].as_str()
-            }));
+            assert_eq!(issues.len(), 1, "{path:?}");
+            let issue = &issues[0];
+            assert_eq!(issue.path, expected_issue["path"], "{path:?}");
+            assert_eq!(
+                issue_source_name(&issue.source),
+                expected_issue["source"].as_str(),
+                "{path:?}"
+            );
+            assert_eq!(
+                issue.rule_id.as_deref(),
+                expected_issue["rule_id"].as_str(),
+                "{path:?}"
+            );
         }
+    }
+}
+
+fn issue_source_name(source: &IssueSource) -> Option<&'static str> {
+    match source {
+        IssueSource::Base => Some("base"),
+        IssueSource::XValidation => Some("x-validation"),
     }
 }

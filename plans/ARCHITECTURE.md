@@ -739,7 +739,10 @@ Those conditions indicate a broken exported schema, not bad user input.
 ## Build Commands
 
 ```bash
+cargo test -p xvalidations-core
 uv run maturin develop
+uv run pytest
+wasm-pack test --node crates/xvalidations-js
 wasm-pack build crates/xvalidations-js --target web --out-dir pkg
 ```
 

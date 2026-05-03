@@ -16,6 +16,7 @@
         }
       }
     },
+    "required": ["items"],
     "x-validations": [
       {
         "id": "item-primary-in-tags",
@@ -27,7 +28,20 @@
       }
     ]
   },
+  "valid_payload": {
+    "items": [
+      {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
+      {"kind": "field", "id": "b", "primary": "green", "tags": ["green"]}
+    ]
+  },
+  "base_invalid_payload": {"items": "not an array"},
   "payload": {
+    "items": [
+      {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
+      {"kind": "field", "id": "b", "primary": "red", "tags": ["green"]}
+    ]
+  },
+  "x_invalid_payload": {
     "items": [
       {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
       {"kind": "field", "id": "b", "primary": "red", "tags": ["green"]}
