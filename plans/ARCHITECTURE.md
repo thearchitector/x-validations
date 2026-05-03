@@ -2,10 +2,12 @@
 
 ## Goal
 
-Build a Pydantic-native library that lets authors attach extra validation rules to a model, export those rules inside the model's JSON Schema, and validate data either:
+Build a Pydantic-native authoring library that lets authors attach extra validation rules to a model, export those rules inside the model's JSON Schema, and validate JSON-compatible payloads from Python or browser JS with the same Rust core.
 
-- with the original Pydantic model available
-- with only the exported schema available
+Python keeps the authoring/export API. Runtime validation is schema-driven and takes only:
+
+- a JSON-compatible payload
+- the exported schema
 
 The library is for contract validation, not for inventing a new validation language. Static rules should stay in ordinary Pydantic and ordinary JSON Schema. The x-validation layer exists only for rules that need instance-derived schema fragments at validation time.
 
@@ -37,8 +39,8 @@ Conceptually, `x-validations` is an embedded meta-schema:
    - the exported schema
    - the canonical JSON instance being validated
 
-7. Model-optional validation
-   First-party callers may pass an `XValidatedModel` instance without a schema argument. Third parties may validate generated or plain Pydantic model instances by providing the exported schema.
+7. Schema-only validation
+   Runtime callers pass `xvalidate(payload, schema)`. Pydantic model instances are not accepted by the runtime; callers that need Pydantic parsing should run it before producing a JSON-compatible payload.
 
 8. Full JSONPath, instance-specialized compilation
    The exported `target` and instance `$resolve` values are JSONPath strings. In Python authoring, v1 does not accept raw JSONPath strings; authors use `x.path` objects, and the exporter serializes those objects to JSONPath. The compiler evaluates paths against canonical dumped JSON, converts target matches into concrete instance locations, and generates a standard JSON Schema overlay specialized to that instance.
@@ -56,6 +58,11 @@ Conceptually, `x-validations` is an embedded meta-schema:
 - Accepting raw JSONPath strings in the Python authoring API for v1
 - Building an autofix or migration engine in v1
 - Requiring every nested model to inherit from `XValidatedModel`
+- Python-side validation normalization
+- Pydantic model input for `xvalidate`
+- CLI/model code generation
+- Browser filesystem or synchronous HTTP `$ref` resolution
+- Python authoring code in Rust
 
 ## Core Concepts
 
@@ -449,31 +456,18 @@ Why keep an explicit exporter if the mixin already injects schema fields:
 - it can enforce root-level export shape for v1
 - it gives the library a stable public entrypoint
 
-### `strip_xvalidations()`
-
-The library should provide a helper for tools that only accept ordinary JSON Schema:
-
-```python
-strip_xvalidations(schema: dict[str, Any]) -> dict[str, Any]
-```
-
-It removes the root `x-validations` list and any `$defs` entries that were generated only for x-validation constants.
-Tools that only accept ordinary JSON Schema can use this stripped base schema, while x-validation runtime checks should use the full exported schema.
-
 ### Canonical naming
 
 `target` and `$resolve` paths must be written against the same key space used by the exported schema.
 
-For that reason, schema export and model dumping must share the same `by_alias` setting. Defaulting to `by_alias=True` is preferred because the exported schema should describe the wire format seen by external consumers.
+For that reason, schema export should describe the wire-format keys that runtime payloads use. Defaulting to `by_alias=True` is preferred because the exported schema should describe the data seen by external consumers.
 
 ## Runtime Architecture
 
 The runtime has two inputs:
 
 - an exported schema
-- a canonical JSON instance
-
-If a Pydantic model is available, it is used only to parse and canonicalize data before handing off to the same runtime pipeline.
+- a JSON-compatible payload
 
 The fundamental design constraint is:
 
@@ -483,79 +477,69 @@ Rules that require arbitrary computation, external state, arithmetic, date math,
 
 ### Main components
 
-- `authoring.py`
+- `xvalidations/authoring.py`
   Implements `@xvalidation`, `XValidationContext`, the owned JSONPath/filter builder AST, and `$resolve` helpers.
-- `artifact.py`
-  Loads, strips, and validates exported schemas plus their root `x-validations`.
-- `graph.py`
-  Walks Pydantic model fields, finds reachable `XValidatedModel` types, and computes root instance paths for local rule rebasing.
-- `resolve.py`
-  Expands `$resolve` placeholders against an instance and schema.
-- `jsonpath.py`
-  Wraps the strict JSONPath evaluator and normalizes matches into values plus concrete instance locations.
-- `target.py`
-  Converts concrete instance locations into JSON Schema overlays.
-- `compiler.py`
-  Compiles exported schemas into reusable validation plans.
-- `runtime.py`
-  Runs base validation, meta-schema compilation, combined validation, and exception normalization.
-- `errors.py`
+- `xvalidations/pydantic.py`
+  Implements `XValidatedModel`, model traversal, root-level export, and the bundled x-validations meta-schema URI.
+- `xvalidations/runtime.py`
+  Thin Python wrapper around the native extension. It accepts dict/list/scalar payloads plus schema and calls Rust.
+- `xvalidations/errors.py`
   Defines exported-schema errors and validation exceptions.
+- `crates/xvalidations-core`
+  Owns artifact extraction, schema preflight, JSONPath evaluation, `$resolve`, overlay lowering, compiled schema generation, and validation issue normalization.
+- `crates/xvalidations-py`
+  Converts Python objects to `serde_json::Value`, calls the core, and maps structured Rust failures to Python exceptions.
+- `crates/xvalidations-js`
+  Converts JS values through `serde-wasm-bindgen`, calls the core, and throws structured `JsValue` failures for browser consumers.
 
 ## Validation pipeline
 
 ### Public validation API
 
 ```python
-def xvalidate(
-    model: BaseModel,
-    *,
-    schema: dict[str, Any] | None = None,
-) -> None: ...
+def xvalidate(payload: Any, schema: dict[str, Any]) -> None: ...
 ```
 
 `xvalidate(...)` is the single public runtime entrypoint.
 
-It always takes a Pydantic model instance. The caller performs normal Pydantic validation first with `Model.model_validate(...)`, so Pydantic `ValidationError`s surface unchanged.
+It takes JSON-compatible data, not a Pydantic model. Callers that want Pydantic parsing should call `Model.model_validate(...)` themselves and then pass a JSON-compatible dump to `xvalidate(payload, schema)`.
 
-If `schema` is omitted, `model` must be an `XValidatedModel` instance. The runtime exports the schema from `type(model)`.
+Browser usage has the same contract:
 
-If `schema` is provided, `model` may be any Pydantic `BaseModel` instance. This supports generated models created from the stripped base schema while still validating against the full exported x-validation schema.
+```ts
+import init, { xvalidate } from "./pkg/xvalidations_js.js";
+
+await init();
+xvalidate({ tags: ["python"], primary_tag: "python" }, schema);
+```
 
 Flow:
 
-1. Assert `model` is a Pydantic `BaseModel` instance.
-2. If `schema is None`, assert `model` is an `XValidatedModel` instance and export schema from its class.
-3. Dump the model with pinned options:
-   - `mode="json"`
-   - `by_alias=<same setting used for schema export>`
-   - `exclude_unset=False`
-   - `exclude_defaults=False`
-   - `exclude_none=False`
-4. Extract and validate the root `x-validations` structure.
-5. Validate the dumped instance against the base schema.
-6. Evaluate each rule's `target` JSONPath against the canonical dumped instance.
+1. Convert the host-language payload and schema to `serde_json::Value`.
+2. Validate the exported schema against the x-validations meta-schema.
+3. Strip `x-validations` and x-validation-owned `$defs` from the base schema.
+4. Validate the payload against the stripped base schema.
+5. If base validation fails, return only base-schema issues.
+6. Evaluate each rule's `target` JSONPath against the payload.
 7. Convert target matches into concrete instance locations.
 8. Resolve all placeholders in every x-validation rule.
 9. Lower each concrete location plus resolved assertion into a JSON Schema overlay.
-10. Combine overlays into a compiled schema.
-11. Validate against `allOf(base_schema, compiled_schema)`.
-12. Raise `XValidationError` if any base-schema or x-validation errors are found. Return `None` on success.
+10. Combine overlays into a compiled Draft 2020-12 schema.
+11. Validate the payload against the compiled schema.
+12. Return `Ok(())`/`None` on success; otherwise return or raise a structured `XValidationFailure`.
 
-`xvalidate(...)` does not wrap Pydantic parsing. Callers who need Pydantic parsing should call `Model.model_validate(...)` themselves, then pass the resulting model instance to `xvalidate(...)`.
-Pydantic `ValidationError`s surface unchanged from those explicit `model_validate(...)` calls.
-
-This keeps the x-validation compiler identical in both first-party and third-party environments.
+This keeps validation behavior identical in native Rust, Python, and browser JS.
 
 ## Meta-Schema Compilation
 
-Three library functions drive the runtime:
+Core Rust modules drive the runtime:
 
-```python
-resolve_placeholders(node, *, instance_json, base_schema) -> JsonValue
-evaluate_target(target, *, instance_json) -> list[InstanceLocation]
-location_to_schema_overlay(location, resolved_assert) -> dict[str, Any]
-generate_compiled_schema(base_schema, instance_json) -> dict[str, Any]
+```rust
+resolve_placeholders(assertion, payload, schema) -> serde_json::Value
+evaluate_jsonpath(query, payload) -> Vec<JsonPathMatch>
+location_to_schema_overlay(location, assertion) -> serde_json::Value
+generate_compiled_schema(schema, payload) -> CompiledSchema
+xvalidate(payload, schema) -> Result<(), XValidationFailure>
 ```
 
 ### `resolve_placeholders`
@@ -586,7 +570,7 @@ This function evaluates the target JSONPath against the canonical instance and r
 
 Requirements:
 
-- use `jsonpath-rfc9535` for RFC 9535 target and `$resolve` evaluation
+- use the Rust JSONPath evaluator for target and `$resolve` evaluation
 - preserve deterministic match order
 - deduplicate identical locations
 - reject non-RFC JSONPath extensions in exported schema artifacts
@@ -695,10 +679,30 @@ The compiled schema should remain plain JSON Schema. If the runtime wants `rule_
 
 ## Error Model
 
-The x-validation runtime should raise exceptions rather than returning result objects.
-It should not catch or translate Pydantic `ValidationError`s; callers get those directly from explicit Pydantic validation.
+The Rust core returns a structured `XValidationFailure`. Bindings preserve that structure:
 
-Suggested public exception shape:
+- Python maps validation failures to `XValidationError` and exported-schema failures to `ExportedSchemaError` subclasses.
+- WASM returns `Ok(())` on success and throws a structured `JsValue` on failure.
+- Host-language conversion failures also use structured objects with machine-readable `kind` fields.
+
+Validation failure shape:
+
+```json
+{
+  "kind": "validation",
+  "issues": [
+    {
+      "path": "$.primary_tag",
+      "message": "...",
+      "keyword": "enum",
+      "source": "x-validation",
+      "rule_id": "primary-tag-exists"
+    }
+  ]
+}
+```
+
+Python exposes issues as Pydantic models:
 
 ```python
 from typing import Literal
@@ -725,7 +729,7 @@ Behavior:
 - `path` is the canonical instance path
 - `source` distinguishes base-schema failures from x-validation failures
 - `rule_id` is present when the failing compiled `allOf` branch can be attributed to a rule
-- Pydantic parsing failures are outside this exception shape and surface as Pydantic `ValidationError`
+- Pydantic parsing is outside this runtime. Callers who use Pydantic call `model_validate(...)` themselves.
 
 Exported-schema errors are different from validation errors and should raise exceptions:
 
@@ -753,30 +757,32 @@ Recommended v1 layout:
 ```text
 xvalidations/
   __init__.py
-  models.py        # internal XValidationRule/XValidationBundle plus public ValidationIssue
+  models.py        # exported rule model plus public ValidationIssue
   authoring.py     # xvalidation decorator, XValidationContext, path builders
   pydantic.py      # XValidatedModel, export_schema
-  artifact.py      # load/strip/validate exported schema structure
-  jsonpath.py      # jsonpath-rfc9535 adapter
-  resolve.py       # $resolve expansion
-  target.py        # concrete location overlay lowering
-  compiler.py      # compiled schema plan / caching
-  runtime.py       # xvalidate
+  runtime.py       # thin native binding wrapper
   errors.py        # XValidationError, ExportedSchemaError, and subclasses
+
+crates/
+  xvalidations-core/  # schema artifact handling, compiler, validator
+  xvalidations-py/    # PyO3 extension
+  xvalidations-js/    # wasm-bindgen extension
 ```
 
 ## External Dependencies
 
-Recommended v1 dependencies:
+Runtime dependencies:
 
 - `pydantic`
-  Required for first-party model integration, schema export, model validation, and canonical `model_dump(mode="json")` output.
-- `jsonschema`
-  Required for base schema validation and validation of the compiled instance-specialized schema. Use a Draft 2020-12 validator.
-- `referencing`
-  Required for robust `$ref`/`$defs` handling and in-memory schema resource management when validating exported schemas.
-- `jsonpath-rfc9535`
-  Required for target and `$resolve` evaluation. The compiler depends on RFC 9535 behavior and concrete match locations.
+  Required for Python authoring/export and structured Python error models.
+- Rust `jsonschema`
+  Required in `xvalidations-core` for Draft 2020-12 base and compiled schema validation.
+- Rust JSONPath evaluator
+  Required in `xvalidations-core` for target and `$resolve` evaluation with concrete match locations.
+- `pyo3` and `pythonize`
+  Required only by the Python native extension.
+- `wasm-bindgen` and `serde-wasm-bindgen`
+  Required only by the browser JS/WASM extension.
 
 The library should not depend on `jsonpath-ng` for v1.
 It has a useful programmatic AST, but its dialect is not the exported contract this library needs:
@@ -787,21 +793,21 @@ It has a useful programmatic AST, but its dialect is not the exported contract t
 - its serialized output would still need auditing or replacement before embedding in exported schemas
 
 Instead, `x-validations` owns a small JSONPath/filter builder AST that serializes to RFC 9535 JSONPath strings.
-`jsonpath-rfc9535` is the runtime truth for whether those strings parse and evaluate correctly.
+The Rust core is the runtime truth for whether those strings parse and evaluate correctly.
 
 ## v1 Decisions
 
 1. Pydantic v2 only
-   The architecture depends on `model_json_schema`, `model_validate`, and `model_dump(mode="json")` semantics from Pydantic v2.
+   The Python authoring/export API depends on `model_json_schema` semantics from Pydantic v2.
 
 2. Decorated-model authoring, root-scoped export
    X-validations may be authored on any reachable `XValidatedModel`. Nested models without x-validations can be ordinary Pydantic models. Export collects local rules and rebases them into one root-level `x-validations` list.
 
 3. Draft-2020-12-compatible validation
-   The runtime should target the same JSON Schema dialect that Pydantic emits for validation schemas. Instance-specific array overlays rely on Draft 2020-12 `prefixItems`.
+   The Rust runtime targets the same JSON Schema dialect that Pydantic emits for validation schemas. Instance-specific array overlays rely on Draft 2020-12 `prefixItems`.
 
 4. Owned JSONPath builder, external JSONPath evaluator
-   The public authoring API uses an owned path/filter AST. Export serializes that AST to RFC 9535 JSONPath strings. Runtime evaluation uses `jsonpath-rfc9535`; non-RFC extensions are rejected.
+   The public authoring API uses an owned path/filter AST. Export serializes that AST to JSONPath strings. Runtime evaluation happens in Rust; unsupported extensions are rejected.
 
 5. No custom execution registry
    There is no `kind -> executor` dispatch table. New rules are new data, not new engine plugins.
@@ -826,9 +832,11 @@ The library should be tested against the following contract:
    Full JSONPath targets are evaluated against canonical JSON and compiled into concrete location overlays with deterministic ordering and deduplication.
 
 5. Behavioral parity
-   `xvalidate(xvalidated_model_instance)` and `xvalidate(generated_model_instance, schema=schema)` agree on:
+   Rust, Python, and WASM `xvalidate(payload, schema)` agree on:
    - pass/fail
    - failing instance paths
+   - `source`
+   - `rule_id`
 
 6. Local-rule rebasing
    Rules authored on nested `XValidatedModel`s are exported once per reachable root path, with targets and local `$resolve` placeholders rebased deterministically.
@@ -849,7 +857,7 @@ The library should be tested against the following contract:
 
 ## Summary
 
-The library should treat x-validations as schema-generation annotations authored on Pydantic models, not as executable Python validators. Authors extend the system by adding decorated model-local rules that compile to the fixed export shape. The runtime stays small:
+The library treats x-validations as schema-generation annotations authored on Pydantic models, not as executable Python validators. Authors extend the system by adding decorated model-local rules that compile to the fixed export shape. The runtime is shared Rust core:
 
 - export one self-contained schema
 - collect and rebase local rules into a root `x-validations` list
@@ -857,6 +865,6 @@ The library should treat x-validations as schema-generation annotations authored
 - evaluate JSONPath targets against canonical JSON
 - resolve placeholders from the schema plus the instance
 - compile an instance-specialized standard JSON Schema from `x-validations`
-- validate again and raise `XValidationError` on failure
+- validate again and return a structured failure on failure
 
-That gives first-party and third-party consumers the same contract surface, while keeping Pydantic as the source of truth for everything that can already be expressed statically.
+That gives native Rust, Python, and browser consumers the same contract surface, while keeping Pydantic as the source of truth for authoring and everything that can already be expressed statically.
