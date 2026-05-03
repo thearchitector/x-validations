@@ -1,5 +1,9 @@
 mod artifact;
+pub mod compiler;
+mod jsonpath;
 mod meta;
+mod resolve;
+mod target;
 pub mod types;
 
 use serde_json::Value;
@@ -7,6 +11,7 @@ use serde_json::Value;
 pub use types::{IssueSource, ValidationIssue, XValidationFailure, XValidationRule};
 
 use crate::artifact::prepare_schema;
+use crate::compiler::generate_compiled_schema;
 use crate::meta::xvalidations_meta_schema;
 
 pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailure> {
@@ -15,8 +20,15 @@ pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailu
 
     let prepared = prepare_schema(schema)?;
     validate_draft202012_schema(&prepared.base_schema)?;
-    validate_payload_against_base_schema(payload, &prepared.base_schema)?;
+    validate_payload_against_schema(payload, &prepared.base_schema, IssueSource::Base, None)?;
 
+    let compiled = generate_compiled_schema(schema, payload)?;
+    validate_payload_against_schema(
+        payload,
+        &compiled.schema,
+        IssueSource::XValidation,
+        Some(&compiled.branch_rule_ids),
+    )?;
     let _rules = prepared.rules;
     Ok(())
 }
@@ -53,9 +65,11 @@ fn validate_draft202012_schema(schema: &Value) -> Result<(), XValidationFailure>
     })
 }
 
-fn validate_payload_against_base_schema(
+fn validate_payload_against_schema(
     payload: &Value,
     schema: &Value,
+    source: IssueSource,
+    branch_rule_ids: Option<&[String]>,
 ) -> Result<(), XValidationFailure> {
     let validator = jsonschema::draft202012::new(schema).map_err(|error| {
         XValidationFailure::InvalidSchema {
@@ -75,20 +89,38 @@ fn validate_payload_against_base_schema(
             path: json_pointer_to_jsonpath(&error.instance_path().to_string(), payload),
             message: error.to_string(),
             keyword: keyword_from_schema_path(&error.schema_path().to_string()),
-            source: IssueSource::Base,
-            rule_id: None,
+            source: source.clone(),
+            rule_id: match source {
+                IssueSource::Base => None,
+                IssueSource::XValidation => {
+                    rule_id_from_schema_path(&error.evaluation_path().to_string(), branch_rule_ids)
+                }
+            },
         })
         .collect();
 
     Err(XValidationFailure::Validation { issues })
 }
 
+fn rule_id_from_schema_path(
+    schema_path: &str,
+    branch_rule_ids: Option<&[String]>,
+) -> Option<String> {
+    let branch_rule_ids = branch_rule_ids?;
+    let tokens = json_pointer_tokens(schema_path);
+    for window in tokens.windows(2) {
+        if window[0] == "allOf" {
+            let Ok(index) = window[1].parse::<usize>() else {
+                continue;
+            };
+            return branch_rule_ids.get(index).cloned();
+        }
+    }
+    None
+}
+
 fn keyword_from_schema_path(schema_path: &str) -> Option<String> {
-    schema_path
-        .rsplit('/')
-        .next()
-        .filter(|keyword| !keyword.is_empty())
-        .map(unescape_json_pointer_token)
+    json_pointer_tokens(schema_path).pop()
 }
 
 fn json_pointer_to_jsonpath(pointer: &str, root: &Value) -> String {
@@ -120,6 +152,17 @@ fn json_pointer_to_jsonpath(pointer: &str, root: &Value) -> String {
         current = next;
     }
     path
+}
+
+fn json_pointer_tokens(pointer: &str) -> Vec<String> {
+    if pointer.is_empty() {
+        return Vec::new();
+    }
+    pointer
+        .trim_start_matches('/')
+        .split('/')
+        .map(unescape_json_pointer_token)
+        .collect()
 }
 
 fn append_property_path(path: &mut String, property: &str) {

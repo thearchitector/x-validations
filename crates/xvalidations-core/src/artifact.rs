@@ -14,7 +14,9 @@ pub(crate) fn prepare_schema(schema: &Value) -> Result<PreparedSchema, XValidati
     Ok(PreparedSchema { base_schema, rules })
 }
 
-fn extract_xvalidations(schema: &Value) -> Result<Vec<XValidationRule>, XValidationFailure> {
+pub(crate) fn extract_xvalidations(
+    schema: &Value,
+) -> Result<Vec<XValidationRule>, XValidationFailure> {
     let Some(raw_rules) = schema.get("x-validations") else {
         return Ok(Vec::new());
     };

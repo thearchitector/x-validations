@@ -132,14 +132,14 @@ fn schema_preflight_allows_resolve_hole_where_json_schema_expects_array() {
             {
                 "id": "primary-tag-exists",
                 "target": "$.primary_tag",
-                "assert": {"enum": {"$resolve": "$.allowed_tags"}}
+                "assert": {"enum": {"$resolve": "$.allowed_tags[*]"}}
             }
         ]
     });
 
     assert_eq!(
         xvalidate(
-            &json!({"allowed_tags": ["python"], "primary_tag": "rust"}),
+            &json!({"allowed_tags": ["python"], "primary_tag": "python"}),
             &schema
         ),
         Ok(())
@@ -151,18 +151,19 @@ fn phase1_keeps_resolved_defs_that_base_schema_still_references() {
     let schema = json!({
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "$defs": {
-            "SharedTag": {"type": "string"}
+            "BaseTag": {"type": "string"},
+            "AllowedTags": ["python"]
         },
         "type": "object",
         "required": ["tag"],
         "properties": {
-            "tag": {"$ref": "#/$defs/SharedTag"}
+            "tag": {"$ref": "#/$defs/BaseTag"}
         },
         "x-validations": [
             {
                 "id": "tag-in-shared-def",
                 "target": "$.tag",
-                "assert": {"enum": {"$resolve": "#/$defs/SharedTag"}}
+                "assert": {"enum": {"$resolve": "#/$defs/AllowedTags"}}
             }
         ]
     });
