@@ -44,6 +44,10 @@ type LiteralUnionFormat = Literal["any_of", "primitive_type_array"]
 type ExportMode = Literal["validation", "serialization"]
 type DefsMap = dict[str, JsonValue]
 
+XVALIDATIONS_SCHEMA_URI = (
+    "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
+)
+
 
 @dataclass(frozen=True)
 class _ExportContext:
@@ -108,6 +112,8 @@ def export_schema(
         )
     else:
         copied = copy.deepcopy(dict(base_schema))
+
+    copied["$schema"] = XVALIDATIONS_SCHEMA_URI
 
     defs: DefsMap = _copy_defs(copied)
     rules: list[XValidationRule] = []

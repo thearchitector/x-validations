@@ -1,21 +1,10 @@
 import copy
-import json
 from contextlib import suppress
 from typing import Any
 
 import pytest
-from jsonschema import Draft202012Validator
-from pydantic import BaseModel
 
-from tests.conftest import (
-    Article,
-    Form,
-    GeneratedArticle,
-    GeneratedForm,
-    GeneratedStaticArticle,
-    Section,
-    StaticArticle,
-)
+from tests.conftest import Article, Form, Section, StaticArticle
 from xvalidations import (
     XValidatedModel,
     XValidationContext,
@@ -24,9 +13,11 @@ from xvalidations import (
     xvalidation,
 )
 from xvalidations.authoring import AuthoredRule
-from xvalidations.compiler import generate_compiled_schema
 from xvalidations.errors import ExportedSchemaError
-from xvalidations.jsonpath import evaluate_jsonpath
+
+XVALIDATIONS_SCHEMA_URI = (
+    "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
+)
 
 
 @pytest.mark.parametrize(
@@ -53,113 +44,18 @@ from xvalidations.jsonpath import evaluate_jsonpath
     ],
 )
 def test_exported_schema_validity_for_all_fixtures(
-    model_cls: type[BaseModel], payload: dict[str, Any]
+    model_cls: type[Any], payload: dict[str, Any]
 ) -> None:
-    schema = model_cls.model_json_schema()
-
-    Draft202012Validator.check_schema(schema)
-    Draft202012Validator(schema).validate(payload)
+    assert xvalidate(payload, model_cls.model_json_schema()) is None
 
 
-@pytest.mark.parametrize(
-    ("model_cls", "payload"),
-    [
-        pytest.param(
-            Article, {"tags": ["python"], "primary_tag": "python"}, id="article"
-        ),
-        pytest.param(
-            Form,
-            {
-                "sections": [
-                    {
-                        "fields": ["title"],
-                        "widgets": [{"kind": "field", "field_id": "title"}],
-                    }
-                ]
-            },
-            id="form",
-        ),
-        pytest.param(
-            StaticArticle, {"tags": ["python"], "primary_tag": "anything"}, id="static"
-        ),
-    ],
-)
-def test_compiled_schemas_contain_no_resolve_for_all_fixtures(
-    model_cls: type[BaseModel], payload: dict[str, Any]
-) -> None:
-    compiled = generate_compiled_schema(model_cls.model_json_schema(), payload)
-
-    assert '"$resolve"' not in json.dumps(compiled.schema)
-
-
-@pytest.mark.parametrize(
-    ("model_cls", "payload"),
-    [
-        pytest.param(
-            Article, {"tags": ["python"], "primary_tag": "python"}, id="article"
-        ),
-        pytest.param(
-            Form,
-            {
-                "sections": [
-                    {
-                        "fields": ["title"],
-                        "widgets": [{"kind": "field", "field_id": "title"}],
-                    }
-                ]
-            },
-            id="form",
-        ),
-        pytest.param(
-            StaticArticle, {"tags": ["python"], "primary_tag": "anything"}, id="static"
-        ),
-    ],
-)
-def test_compiled_schemas_are_valid_draft_2020_12_for_all_fixtures(
-    model_cls: type[BaseModel], payload: dict[str, Any]
-) -> None:
-    compiled = generate_compiled_schema(model_cls.model_json_schema(), payload)
-
-    Draft202012Validator.check_schema(compiled.schema)
-
-
-def test_full_jsonpath_target_filter_selects_only_matching_nodes() -> None:
-    payload = {
-        "sections": [
-            {
-                "fields": ["title"],
-                "widgets": [
-                    {"kind": "field", "field_id": "title"},
-                    {"kind": "text", "text": "Intro", "field_id": "decoy"},
-                ],
-            }
-        ]
-    }
-    matches = evaluate_jsonpath(
-        '$.sections[*].widgets[?(@.kind == "field")].field_id', payload
-    )
-
-    assert [match.location for match in matches] == [
-        ("sections", 0, "widgets", 0, "field_id")
-    ]
-
-
-def test_path_based_parity_internal_external_article(
+def test_path_based_parity_article(
     article_schema: dict[str, object],
     good_article_payload: dict[str, object],
     bad_article_payload: dict[str, object],
 ) -> None:
-    internal_good = Article.model_validate(good_article_payload)
-    external_good = GeneratedArticle.model_validate(good_article_payload)
-    internal_bad = Article.model_validate(bad_article_payload)
-    external_bad = GeneratedArticle.model_validate(bad_article_payload)
-
-    assert xvalidate(internal_good) is None
-    assert xvalidate(external_good, schema=article_schema) is None
-    assert _xvalidation_failure_triples(internal_bad) == [
-        ("$.primary_tag", "primary-tag-exists", "x-validation")
-    ]
-    assert _xvalidation_failure_triples(external_bad, article_schema) == [
+    assert xvalidate(good_article_payload, article_schema) is None
+    assert _xvalidation_failure_triples(bad_article_payload, article_schema) == [
         ("$.primary_tag", "primary-tag-exists", "x-validation")
     ]
 
@@ -168,22 +64,15 @@ def test_path_based_parity_nested_form(
     good_form_payload: dict[str, object], bad_form_payload: dict[str, object]
 ) -> None:
     schema = Form.model_json_schema()
-    internal_good = Form.model_validate(good_form_payload)
-    external_good = GeneratedForm.model_validate(good_form_payload)
-    internal_bad = Form.model_validate(bad_form_payload)
-    external_bad = GeneratedForm.model_validate(bad_form_payload)
 
-    assert xvalidate(internal_good) is None
-    assert xvalidate(external_good, schema=schema) is None
-    expected = [
+    assert xvalidate(good_form_payload, schema) is None
+    assert _xvalidation_failure_triples(bad_form_payload, schema) == [
         (
             "$.sections[0].widgets[0].field_id",
             "section-widget-field-exists",
             "x-validation",
         )
     ]
-    assert _xvalidation_failure_triples(internal_bad) == expected
-    assert _xvalidation_failure_triples(external_bad, schema) == expected
 
 
 def test_local_rule_rebasing_exports_once_per_reachable_root_path() -> None:
@@ -242,13 +131,9 @@ def test_static_rule_separation_keeps_min_length_in_base_schema() -> None:
 
 def test_static_rule_external_schema_enforces_bad_payload() -> None:
     schema = StaticArticle.model_json_schema()
-    model = GeneratedStaticArticle.model_validate({
-        "tags": [],
-        "primary_tag": "anything",
-    })
 
     with pytest.raises(XValidationError) as exc_info:
-        xvalidate(model, schema=schema)
+        xvalidate({"tags": [], "primary_tag": "anything"}, schema)
 
     assert [
         (issue.path, issue.source, issue.rule_id) for issue in exc_info.value.errors
@@ -293,24 +178,24 @@ def test_static_rule_external_schema_enforces_bad_payload() -> None:
     ],
 )
 def test_each_example_rule_has_positive_and_negative_fixture(
-    model_cls: type[BaseModel],
+    model_cls: type[Any],
     good_payload: dict[str, Any],
     bad_payload: dict[str, Any],
 ) -> None:
-    assert xvalidate(model_cls.model_validate(good_payload)) is None
-    try:
-        model = model_cls.model_validate(bad_payload)
-    except ValueError:
-        return
+    schema = model_cls.model_json_schema()
 
+    assert xvalidate(good_payload, schema) is None
     with pytest.raises(XValidationError):
-        xvalidate(model)
+        xvalidate(bad_payload, schema)
 
 
 def test_exported_schema_errors_are_not_xvalidation_errors() -> None:
     with pytest.raises(ExportedSchemaError) as exc_info:
-        generate_compiled_schema(
+        xvalidate(
+            {},
             {
+                "$schema": XVALIDATIONS_SCHEMA_URI,
+                "type": "object",
                 "x-validations": [
                     {
                         "id": "bad",
@@ -318,108 +203,70 @@ def test_exported_schema_errors_are_not_xvalidation_errors() -> None:
                         "target": "$[",
                         "assert": {"type": "string"},
                     }
-                ]
+                ],
             },
-            {},
         )
 
     assert not isinstance(exc_info.value, XValidationError)
 
 
 @pytest.mark.parametrize(
-    ("model", "schema"),
+    ("payload", "schema"),
     [
         pytest.param(
-            Article.model_validate({"tags": ["python"], "primary_tag": "python"}),
-            None,
-            id="article-internal-pass",
-        ),
-        pytest.param(
-            Article.model_validate({"tags": ["python"], "primary_tag": "bad"}),
-            None,
-            id="article-internal-fail",
-        ),
-        pytest.param(
-            GeneratedArticle.model_validate({
-                "tags": ["python"],
-                "primary_tag": "python",
-            }),
+            {"tags": ["python"], "primary_tag": "python"},
             Article.model_json_schema(),
-            id="article-external-pass",
+            id="article-pass",
         ),
         pytest.param(
-            GeneratedArticle.model_validate({"tags": ["python"], "primary_tag": "bad"}),
+            {"tags": ["python"], "primary_tag": "bad"},
             Article.model_json_schema(),
-            id="article-external-fail",
+            id="article-fail",
         ),
         pytest.param(
-            Form.model_validate({
+            {
                 "sections": [
                     {
                         "fields": ["title"],
                         "widgets": [{"kind": "field", "field_id": "title"}],
                     }
                 ]
-            }),
-            None,
-            id="form-internal-pass",
+            },
+            Form.model_json_schema(),
+            id="form-pass",
         ),
         pytest.param(
-            Form.model_validate({
+            {
                 "sections": [
                     {
                         "fields": ["title"],
                         "widgets": [{"kind": "field", "field_id": "missing"}],
                     }
                 ]
-            }),
-            None,
-            id="form-internal-fail",
-        ),
-        pytest.param(
-            GeneratedForm.model_validate({
-                "sections": [
-                    {
-                        "fields": ["title"],
-                        "widgets": [{"kind": "field", "field_id": "title"}],
-                    }
-                ]
-            }),
+            },
             Form.model_json_schema(),
-            id="form-external-pass",
-        ),
-        pytest.param(
-            GeneratedForm.model_validate({
-                "sections": [
-                    {
-                        "fields": ["title"],
-                        "widgets": [{"kind": "field", "field_id": "missing"}],
-                    }
-                ]
-            }),
-            Form.model_json_schema(),
-            id="form-external-fail",
+            id="form-fail",
         ),
     ],
 )
-def test_validation_never_mutates_input_model(
-    model: BaseModel, schema: dict[str, object] | None
+def test_validation_never_mutates_inputs(
+    payload: dict[str, Any], schema: dict[str, Any]
 ) -> None:
-    original_dump = copy.deepcopy(model.model_dump(mode="json"))
+    original_payload = copy.deepcopy(payload)
     original_schema = copy.deepcopy(schema)
 
     with suppress(XValidationError):
-        xvalidate(model, schema=schema)
+        xvalidate(payload, schema)
 
-    assert model.model_dump(mode="json") == original_dump
+    assert payload == original_payload
     assert schema == original_schema
 
 
 def _xvalidation_failure_triples(
-    model: BaseModel, schema: dict[str, object] | None = None
+    payload: dict[str, object], schema: dict[str, object]
 ) -> list[tuple[str, str | None, str]]:
     with pytest.raises(XValidationError) as exc_info:
-        xvalidate(model, schema=schema)
+        xvalidate(payload, schema)
     return [
         (issue.path, issue.rule_id, issue.source) for issue in exc_info.value.errors
     ]

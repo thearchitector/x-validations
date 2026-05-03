@@ -8,6 +8,10 @@ from xvalidations import XValidatedModel, XValidationContext, export_schema, xva
 from xvalidations.authoring import AuthoredRule
 from xvalidations.errors import InvalidRuleError
 
+XVALIDATIONS_SCHEMA_URI = (
+    "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
+)
+
 
 class Article(XValidatedModel):
     tags: list[str]
@@ -25,6 +29,7 @@ class Article(XValidatedModel):
 def test_article_export_matches_readme_contract() -> None:
     schema = Article.model_json_schema()
 
+    assert schema["$schema"] == XVALIDATIONS_SCHEMA_URI
     assert schema["x-validations"] == [
         {
             "id": "primary-tag-exists",

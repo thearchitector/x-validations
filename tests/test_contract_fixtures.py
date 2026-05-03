@@ -5,11 +5,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from jsonschema import Draft202012Validator
 
 from tests.conftest import Article
-from xvalidations.compiler import generate_compiled_schema
-from xvalidations.runtime import issues_from_errors
+from xvalidations import XValidationError, xvalidate
 
 CONTRACTS_DIR = Path("tests/fixtures/contracts")
 XVALIDATIONS_SCHEMA_URI = (
@@ -44,6 +42,7 @@ def test_current_authoring_emits_contract_extension_shape() -> None:
     article_contract = _load_contract("article.json")
     exported = Article.model_json_schema()
 
+    assert exported["$schema"] == XVALIDATIONS_SCHEMA_URI
     assert exported["x-validations"] == article_contract["schema"]["x-validations"]
 
 
@@ -59,16 +58,13 @@ def test_current_authoring_emits_contract_extension_shape() -> None:
 def test_contract_expected_x_issue(
     contract_name: str, payload_key: str, issue_key: str
 ) -> None:
-    """Check contract fixtures against the current Python compiler."""
+    """Check contract fixtures against the Rust-backed Python runtime."""
     contract = _load_contract(contract_name)
     payload = contract[payload_key]
     expected_issue = contract[issue_key]
-    compiled = generate_compiled_schema(contract["schema"], payload)
-    errors = Draft202012Validator(compiled.schema).iter_errors(payload)
 
-    issues = issues_from_errors(
-        errors, source="x-validation", branch_rule_ids=compiled.branch_rule_ids
-    )
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate(payload, contract["schema"])
 
     assert [
         {
@@ -76,5 +72,5 @@ def test_contract_expected_x_issue(
             "source": issue.source,
             "rule_id": issue.rule_id,
         }
-        for issue in issues
+        for issue in exc_info.value.errors
     ] == [expected_issue]
