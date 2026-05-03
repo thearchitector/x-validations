@@ -458,17 +458,7 @@ strip_xvalidations(schema: dict[str, Any]) -> dict[str, Any]
 ```
 
 It removes the root `x-validations` list and any `$defs` entries that were generated only for x-validation constants.
-External model generation should use this stripped base schema, while x-validation runtime checks should use the full exported schema.
-
-### Code generation CLI
-
-The package should expose a small wrapper around `datamodel-codegen`:
-
-```bash
-xvalidations-codegen --input schema.json --output model.py
-```
-
-The CLI intentionally supports only `--input` and `--output`. It loads the full x-validation schema, strips x-validation metadata into a temporary base schema, and invokes `datamodel-codegen` with JSON Schema input and Pydantic v2 `BaseModel` output.
+Tools that only accept ordinary JSON Schema can use this stripped base schema, while x-validation runtime checks should use the full exported schema.
 
 ### Canonical naming
 
