@@ -481,33 +481,33 @@ Rules that require arbitrary computation, external state, arithmetic, date math,
   Implements `@xvalidation`, `XValidationContext`, the owned JSONPath/filter builder AST, and `$resolve` helpers.
 - `xvalidations/pydantic.py`
   Implements `XValidatedModel`, model traversal, root-level export, and the bundled x-validations meta-schema URI.
-- `xvalidations/runtime.py`
-  Thin Python wrapper around the native extension. It accepts dict/list/scalar payloads plus schema and calls Rust.
 - `xvalidations/errors.py`
-  Defines exported-schema errors and validation exceptions.
+  Defines authoring/export errors raised while declaring or exporting x-validations.
 - `crates/xvalidations-core`
   Owns artifact extraction, schema preflight, JSONPath evaluation, `$resolve`, overlay lowering, compiled schema generation, and validation issue normalization.
-- `crates/xvalidations-py`
-  Converts Python objects to `serde_json::Value`, calls the core, and maps structured Rust failures to Python exceptions.
-- `crates/xvalidations-js`
-  Converts JS values through `serde-wasm-bindgen`, calls the core, and throws structured `JsValue` failures for browser consumers.
+- `crates/xvalid-py`
+  Standalone pure-Rust Python package `xvalid-py`/`xvalid`. Converts Python objects to `serde_json::Value`, calls the core, and exposes schema-checking exceptions plus validation issues from PyO3.
+- `crates/xvalid-js`
+  Converts JS values through `serde-wasm-bindgen`, calls the core, and throws JavaScript `Error` objects that carry the serialized core failure.
 
 ## Validation pipeline
 
 ### Public validation API
 
 ```python
+from xvalid import xvalidate
+
 def xvalidate(payload: Any, schema: dict[str, Any]) -> None: ...
 ```
 
-`xvalidate(...)` is the single public runtime entrypoint.
+`xvalid.xvalidate(...)` is the single public Python runtime entrypoint.
 
 It takes JSON-compatible data, not a Pydantic model. Callers that want Pydantic parsing should call `Model.model_validate(...)` themselves and then pass a JSON-compatible dump to `xvalidate(payload, schema)`.
 
 Browser usage has the same contract:
 
 ```ts
-import init, { xvalidate } from "./pkg/xvalidations_js.js";
+import init, { xvalidate } from "./pkg/xvalid_js.js";
 
 await init();
 xvalidate({ tags: ["python"], primary_tag: "python" }, schema);
@@ -679,11 +679,12 @@ The compiled schema should remain plain JSON Schema. If the runtime wants `rule_
 
 ## Error Model
 
-The Rust core returns a structured `XValidationFailure`. Bindings preserve that structure:
+The Rust core owns the serializable error payloads. Bindings preserve those shapes and only wrap them in host-language error types:
 
-- Python maps validation failures to `XValidationError` and exported-schema failures to `ExportedSchemaError` subclasses.
-- WASM returns `Ok(())` on success and throws a structured `JsValue` on failure.
-- Host-language conversion failures also use structured objects with machine-readable `kind` fields.
+- `XValidationFailure` represents schema-checking failures from the core.
+- `XValidationBindingFailure` represents host-language value conversion failures with `{ "kind", "message" }`.
+- Python maps validation failures to `XValidationError`, exported-schema failures to `ExportedSchemaError` subclasses, and conversion failures to `XValidationTypeError`.
+- WASM returns `Ok(())` on success and throws a JavaScript `Error` with `name`, `kind`, and `failure` properties on failure.
 
 Validation failure shape:
 
@@ -702,23 +703,23 @@ Validation failure shape:
 }
 ```
 
-Python exposes issues as Pydantic models:
+Python exposes validation issues as PyO3 classes and includes the serialized core failure on every schema-checking exception:
 
 ```python
 from typing import Literal
 
-from pydantic import BaseModel
 
-
-class ValidationIssue(BaseModel):
+class ValidationIssue:
     path: str
     message: str
-    keyword: str | None = None
+    keyword: str | None
     source: Literal["base", "x-validation"]
-    rule_id: str | None = None
+    rule_id: str | None
 
 
 class XValidationError(Exception):
+    kind: Literal["validation"]
+    failure: dict[str, object]
     errors: list[ValidationIssue]
 ```
 
@@ -744,10 +745,10 @@ Those conditions indicate a broken exported schema, not bad user input.
 
 ```bash
 cargo test -p xvalidations-core
-uv run maturin develop
+uv run maturin develop --manifest-path crates/xvalid-py/Cargo.toml
 uv run pytest
-wasm-pack test --node crates/xvalidations-js
-wasm-pack build crates/xvalidations-js --target web --out-dir pkg
+wasm-pack test --node crates/xvalid-js
+wasm-pack build crates/xvalid-js --target web --out-dir pkg
 ```
 
 ## Package Layout
@@ -757,16 +758,15 @@ Recommended v1 layout:
 ```text
 xvalidations/
   __init__.py
-  models.py        # exported rule model plus public ValidationIssue
+  models.py        # exported rule models
   authoring.py     # xvalidation decorator, XValidationContext, path builders
   pydantic.py      # XValidatedModel, export_schema
-  runtime.py       # thin native binding wrapper
-  errors.py        # XValidationError, ExportedSchemaError, and subclasses
+  errors.py        # authoring/export errors
 
 crates/
   xvalidations-core/  # schema artifact handling, compiler, validator
-  xvalidations-py/    # PyO3 extension
-  xvalidations-js/    # wasm-bindgen extension
+  xvalid-py/          # standalone pure-Rust PyO3-backed xvalid package
+  xvalid-js/          # wasm-bindgen extension
 ```
 
 ## External Dependencies
@@ -774,7 +774,7 @@ crates/
 Runtime dependencies:
 
 - `pydantic`
-  Required for Python authoring/export and structured Python error models.
+  Required for Python authoring/export.
 - Rust `jsonschema`
   Required in `xvalidations-core` for Draft 2020-12 base and compiled schema validation.
 - Rust JSONPath evaluator

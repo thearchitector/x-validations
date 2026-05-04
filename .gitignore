@@ -7,8 +7,8 @@ __pycache__/
 
 dist/
 target/
-crates/xvalidations-js/pkg/
+crates/xvalid-js/pkg/
 
 test.py
 .skylos*
-.coverage
+.coverage*

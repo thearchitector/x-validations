@@ -1,0 +1,27 @@
+[project]
+name = "xvalid-py"
+version = "0.1.0"
+description = "Standalone Python runtime bindings for x-validations."
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+bindings = "pyo3"
+include = [{ path = "xvalid.pyi", format = "sdist" }]
+
+[tool.uv]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "xvalid.pyi" },
+    { file = "src/**/*.rs" },
+    { file = "../xvalidations-core/Cargo.toml" },
+    { file = "../xvalidations-core/src/**/*.rs" },
+    { file = "../../Cargo.toml" },
+    { file = "../../Cargo.lock" },
+]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

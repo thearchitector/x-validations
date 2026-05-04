@@ -17,6 +17,15 @@ repos:
             exclude: ^tests/
             require_serial: true
             pass_filenames: false
+    - repo: https://github.com/FeryET/pre-commit-rust
+      rev: v1.2.1
+      hooks:
+          - id: fmt
+          - id: cargo-check
+          - id: clippy
+            args:
+                - --fix
+                - --allow-dirty
     - repo: local
       hooks:
           - id: skylos

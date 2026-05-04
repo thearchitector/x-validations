@@ -8,7 +8,9 @@ pub mod types;
 
 use serde_json::Value;
 
-pub use types::{IssueSource, ValidationIssue, XValidationFailure, XValidationRule};
+pub use types::{
+    IssueSource, ValidationIssue, XValidationBindingFailure, XValidationFailure, XValidationRule,
+};
 
 use crate::artifact::prepare_schema;
 use crate::compiler::generate_compiled_schema;

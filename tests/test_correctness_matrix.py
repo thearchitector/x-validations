@@ -3,17 +3,11 @@ from contextlib import suppress
 from typing import Any
 
 import pytest
+from xvalid import ExportedSchemaError, XValidationError, xvalidate
 
 from tests.conftest import Article, Form, Section, StaticArticle
-from xvalidations import (
-    XValidatedModel,
-    XValidationContext,
-    XValidationError,
-    xvalidate,
-    xvalidation,
-)
+from xvalidations import XValidatedModel, XValidationContext, xvalidation
 from xvalidations.authoring import AuthoredRule
-from xvalidations.errors import ExportedSchemaError
 
 XVALIDATIONS_SCHEMA_URI = (
     "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
@@ -178,9 +172,7 @@ def test_static_rule_external_schema_enforces_bad_payload() -> None:
     ],
 )
 def test_each_example_rule_has_positive_and_negative_fixture(
-    model_cls: type[Any],
-    good_payload: dict[str, Any],
-    bad_payload: dict[str, Any],
+    model_cls: type[Any], good_payload: dict[str, Any], bad_payload: dict[str, Any]
 ) -> None:
     schema = model_cls.model_json_schema()
 

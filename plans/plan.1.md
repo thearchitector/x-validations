@@ -1,3 +1,4 @@
+<!-- pragma: no ai -->
 # Rust Shared Schema Validation Plan
 
 Status: draft. No immutability pragma until human approves.

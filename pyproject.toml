@@ -2,10 +2,17 @@
 name = "xvalidations"
 version = "0.1.0"
 description = "Extra validations in your Pydantic models for better self-describing JSON schemata."
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.3",
+    "xvalid-py>=0.1.0",
 ]
+
+[tool.uv.sources]
+xvalid-py = { workspace = true }
+
+[tool.uv.workspace]
+members = [".", "crates/xvalid-py"]
 
 [dependency-groups]
 dev = [
@@ -23,7 +30,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "-ra -vv --crap --cov xvalidations"
-testpaths = ["tests"]
+testpaths = ["tests", "crates/xvalid-py/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
@@ -51,7 +58,7 @@ extend-select = ["B", "I", "ASYNC", "TC", "SIM", "PL", "TID", "PT", "PTH", "PERF
 extend-ignore = ["PLR2004", "PLR0911", "PLR0912", "PLR0913", "TID252"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["TC"]
+"**/tests/**" = ["TC"]
 
 [tool.ruff.lint.flake8-type-checking]
 strict = true
@@ -71,18 +78,22 @@ preview = true
 
 [tool.skylos]
 nesting = 4
-exclude = ["tests", ".ruff_cache"]
-# ignore = ["SKY-L027", "SKY-Q701", "SKY-Q802", "SKY-Q803"]
+exclude = ["tests", ".ruff_cache", "crates", "plans"]
+ignore = [
+    "SKY-L021",
+    "SKY-Q701",
+    "SKY-Q802",
+    "SKY-Q803",
+    "SKY-U005",
+]
 
 [tool.skylos.gate]
 strict = true
 
-[tool.maturin]
-manifest-path = "crates/xvalidations-py/Cargo.toml"
-module-name = "xvalidations._xvalidations"
-python-source = "."
-bindings = "pyo3"
+[tool.uv.build-backend]
+module-name = "xvalidations"
+module-root = ""
 
 [build-system]
-requires = ["maturin>=1.0,<2.0"]
-build-backend = "maturin"
+requires = ["uv_build>=0.11.8,<0.12.0"]
+build-backend = "uv_build"

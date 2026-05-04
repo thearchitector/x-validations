@@ -2,9 +2,14 @@ import copy
 import json
 
 import pytest
+from xvalid import (
+    ExportedSchemaError,
+    XValidationError,
+    XValidationTypeError,
+    xvalidate,
+)
 
 from tests.conftest import Article
-from xvalidations import ExportedSchemaError, XValidationError, xvalidate
 
 
 def test_xvalidate_accepts_json_loaded_dict() -> None:
@@ -26,6 +31,10 @@ def test_xvalidate_rejects_xvalidation_failure() -> None:
         "x-validation",
         "primary-tag-exists",
     )
+    assert exc_info.value.kind == "validation"
+    assert str(exc_info.value) == "1 validation issue(s)"
+    assert exc_info.value.failure["kind"] == "validation"
+    assert exc_info.value.failure["issues"][0]["path"] == "$.primary_tag"
 
 
 def test_xvalidate_rejects_base_schema_failure() -> None:
@@ -40,8 +49,35 @@ def test_xvalidate_rejects_base_schema_failure() -> None:
 
 
 def test_xvalidate_rejects_invalid_schema_shape() -> None:
-    with pytest.raises(ExportedSchemaError):
+    with pytest.raises(ExportedSchemaError) as exc_info:
         xvalidate({}, {"type": "object"})
+
+    assert exc_info.value.kind == "invalid_schema"
+    assert exc_info.value.failure["kind"] == "invalid_schema"
+    assert isinstance(exc_info.value.failure["message"], str)
+
+
+def test_xvalidate_rejects_non_json_payload_with_structured_type_error() -> None:
+    schema = Article.model_json_schema()
+
+    with pytest.raises(XValidationTypeError) as exc_info:
+        xvalidate(object(), schema)
+
+    assert isinstance(exc_info.value, TypeError)
+    assert exc_info.value.kind == "invalid_payload"
+    assert exc_info.value.failure["kind"] == "invalid_payload"
+    assert exc_info.value.failure["message"] == str(exc_info.value)
+    assert "payload must be JSON-compatible" in str(exc_info.value)
+
+
+def test_xvalidate_rejects_non_json_schema_with_structured_type_error() -> None:
+    with pytest.raises(XValidationTypeError) as exc_info:
+        xvalidate({}, object())
+
+    assert exc_info.value.kind == "invalid_schema_input"
+    assert exc_info.value.failure["kind"] == "invalid_schema_input"
+    assert exc_info.value.failure["message"] == str(exc_info.value)
+    assert "schema must be JSON-compatible" in str(exc_info.value)
 
 
 def test_runtime_does_not_mutate_payload_or_schema() -> None:

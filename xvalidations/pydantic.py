@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
 from types import UnionType
 from typing import (
@@ -34,7 +35,7 @@ from xvalidations.errors import InvalidRuleError
 from xvalidations.models import JsonValue, XValidationRule
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Mapping
 
     from pydantic.json_schema import JsonSchemaMode
 
@@ -79,7 +80,7 @@ class XValidatedModel(BaseModel):
     @classmethod
     def model_json_schema(
         cls,
-        by_alias: bool = True,  # noqa: SKY-L029
+        by_alias: bool = True,  # skylos: ignore[SKY-S101]
         ref_template: str = DEFAULT_REF_TEMPLATE,
         schema_generator: type[GenerateJsonSchema] = GenerateJsonSchema,
         mode: "JsonSchemaMode" = "validation",

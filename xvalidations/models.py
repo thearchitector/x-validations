@@ -1,13 +1,13 @@
 """Stable exported data contracts."""
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field
 
 type JsonValue = (
     None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 )
 type InstanceLocation = tuple[str | int, ...]
+
+__all__ = ["InstanceLocation", "JsonValue", "XValidationBundle", "XValidationRule"]
 
 
 class XValidationRule(BaseModel):
@@ -26,13 +26,3 @@ class XValidationBundle(BaseModel):
 
     defs: dict[str, JsonValue]
     rules: list[XValidationRule]
-
-
-class ValidationIssue(BaseModel):
-    """Normalized validation failure details."""
-
-    path: str
-    message: str
-    keyword: str | None
-    source: Literal["base", "x-validation"]
-    rule_id: str | None

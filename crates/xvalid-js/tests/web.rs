@@ -1,7 +1,8 @@
+use js_sys::Reflect;
 use serde_json::Value;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
-use xvalidations_js::xvalidate;
+use xvalid_js::xvalidate;
 
 const CONTRACTS: &[(&str, &str)] = &[
     (
@@ -34,6 +35,20 @@ fn from_js(value: JsValue) -> Value {
     serde_wasm_bindgen::from_value(value).expect("failure should convert from JsValue")
 }
 
+fn error_property(error: &JsValue, name: &str) -> JsValue {
+    Reflect::get(error, &JsValue::from_str(name)).expect("error property should be readable")
+}
+
+fn error_property_string(error: &JsValue, name: &str) -> String {
+    error_property(error, name)
+        .as_string()
+        .expect("error property should be a string")
+}
+
+fn error_failure(error: &JsValue) -> Value {
+    from_js(error_property(error, "failure"))
+}
+
 #[wasm_bindgen_test]
 fn contract_valid_payloads_return_ok() {
     for (name, contract) in contract_values() {
@@ -52,7 +67,9 @@ fn contract_base_invalid_payloads_have_only_base_issues() {
         if let Some(base_invalid_payload) = contract.get("base_invalid_payload") {
             let failure = xvalidate(to_js(base_invalid_payload), to_js(&contract["schema"]))
                 .expect_err("base-invalid payload should throw structured failure");
-            let failure = from_js(failure);
+            assert_eq!(error_property_string(&failure, "name"), "XValidationError");
+            assert_eq!(error_property_string(&failure, "kind"), "validation");
+            let failure = error_failure(&failure);
             let issues = failure["issues"]
                 .as_array()
                 .expect("validation failure should contain issue array");
@@ -77,9 +94,13 @@ fn contract_x_invalid_payloads_match_expected_issue() {
         if let (Some(payload), Some(expected_issue)) = (payload, expected_issue) {
             let failure = xvalidate(to_js(payload), to_js(&contract["schema"]))
                 .expect_err("x-invalid payload should throw structured failure");
-            let failure = from_js(failure);
+            assert_eq!(error_property_string(&failure, "name"), "XValidationError");
+            assert_eq!(error_property_string(&failure, "kind"), "validation");
+            let errors = from_js(error_property(&failure, "errors"));
+            let failure = error_failure(&failure);
 
             assert_eq!(failure["kind"], "validation", "{name}");
+            assert_eq!(errors.as_array().map(Vec::len), Some(1), "{name}");
             assert_eq!(
                 failure["issues"].as_array().map(Vec::len),
                 Some(1),
@@ -110,9 +131,15 @@ fn invalid_payload_conversion_returns_machine_readable_kind() {
 
     let failure = xvalidate(JsValue::UNDEFINED, to_js(&contract["schema"]))
         .expect_err("undefined payload should throw conversion failure");
-    let failure = from_js(failure);
+    assert_eq!(
+        error_property_string(&failure, "name"),
+        "XValidationTypeError"
+    );
+    assert_eq!(error_property_string(&failure, "kind"), "invalid_payload");
+    let failure = error_failure(&failure);
 
     assert_eq!(failure["kind"], "invalid_payload");
+    assert!(failure["message"].is_string());
 }
 
 #[wasm_bindgen_test]
@@ -124,7 +151,16 @@ fn invalid_schema_conversion_returns_machine_readable_kind() {
 
     let failure = xvalidate(to_js(&contract["valid_payload"]), JsValue::UNDEFINED)
         .expect_err("undefined schema should throw conversion failure");
-    let failure = from_js(failure);
+    assert_eq!(
+        error_property_string(&failure, "name"),
+        "XValidationTypeError"
+    );
+    assert_eq!(
+        error_property_string(&failure, "kind"),
+        "invalid_schema_input"
+    );
+    let failure = error_failure(&failure);
 
     assert_eq!(failure["kind"], "invalid_schema_input");
+    assert!(failure["message"].is_string());
 }

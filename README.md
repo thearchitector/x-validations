@@ -18,13 +18,12 @@ class Article(XValidatedModel):
     primary_tag: str
 
     @xvalidation(
-        id="primary-tag-exists",
-        description="Primary tag must be present in tags.",
+        id="primary-tag-exists", description="Primary tag must be present in tags."
     )
     def primary_tag_exists(x: XValidationContext):
-        return x.target(x.path.primary_tag).assert_schema(
-            {"enum": x.resolve(x.path.tags.each())}
-        )
+        return x.target(x.path.primary_tag).assert_schema({
+            "enum": x.resolve(x.path.tags.each())
+        })
 ```
 
 ### 2. Export the schema

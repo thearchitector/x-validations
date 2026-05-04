@@ -5,9 +5,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from xvalid import XValidationError, xvalidate
 
 from tests.conftest import Article
-from xvalidations import XValidationError, xvalidate
 
 CONTRACTS_DIR = Path("tests/fixtures/contracts")
 XVALIDATIONS_SCHEMA_URI = (
@@ -94,10 +94,6 @@ def test_contract_x_invalid_payloads_match_expected_issue(
         xvalidate(payload, contract["schema"])
 
     assert [
-        {
-            "path": issue.path,
-            "source": issue.source,
-            "rule_id": issue.rule_id,
-        }
+        {"path": issue.path, "source": issue.source, "rule_id": issue.rule_id}
         for issue in exc_info.value.errors
     ] == [expected_issue]

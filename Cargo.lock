@@ -1257,6 +1257,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
+name = "xvalid-js"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "serde-wasm-bindgen",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "xvalidations-core",
+]
+
+[[package]]
+name = "xvalid-py"
+version = "0.1.0"
+dependencies = [
+ "pyo3",
+ "pythonize",
+ "serde_json",
+ "xvalidations-core",
+]
+
+[[package]]
 name = "xvalidations-core"
 version = "0.1.0"
 dependencies = [
@@ -1266,27 +1288,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
-]
-
-[[package]]
-name = "xvalidations-js"
-version = "0.1.0"
-dependencies = [
- "serde-wasm-bindgen",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-test",
- "xvalidations-core",
-]
-
-[[package]]
-name = "xvalidations-py"
-version = "0.1.0"
-dependencies = [
- "pyo3",
- "pythonize",
- "serde_json",
- "xvalidations-core",
 ]
 
 [[package]]
