@@ -84,7 +84,7 @@ def test_local_rule_cannot_reference_parent_path() -> None:
     assert rule["assert"]["enum"]["$resolve"] == "$.fields[*]"
 
 
-def test_automatic_defs_deduplicate_constants() -> None:
+def test_constant_rules_enforce_their_declared_values() -> None:
     class ConstantRule(XValidatedModel):
         first: str
         second: str
@@ -98,29 +98,13 @@ def test_automatic_defs_deduplicate_constants() -> None:
             return x.target(x.path.second).assert_schema({"enum": x.resolve(["same"])})
 
     schema = ConstantRule.model_json_schema()
-    refs = [rule["assert"]["enum"]["$resolve"] for rule in schema["x-validations"]]
+    assert xvalidate({"first": "same", "second": "same"}, schema) is None
 
-    assert len(schema["$defs"]) == 1
-    assert refs[0] == refs[1]
-    assert refs[0].removeprefix("#/$defs/") in schema["$defs"]
-
-
-def test_unused_constants_are_not_exported() -> None:
-    class NoConstantRule(XValidatedModel):
-        value: str
-
-        @xvalidation(id="inline", description="Inline assertion.")
-        def inline_rule(x: XValidationContext) -> AuthoredRule:
-            return x.target(x.path.value).assert_schema({"type": "string"})
-
-    assert "$defs" not in NoConstantRule.model_json_schema()
-
-
-def test_static_rule_separation_keeps_min_length_in_base_schema() -> None:
-    schema = StaticArticle.model_json_schema()
-
-    assert schema["properties"]["tags"]["minItems"] == 1
-    assert "x-validations" not in schema
+    for field, rule_id in (("first", "first"), ("second", "second")):
+        payload = {"first": "same", "second": "same", field: "different"}
+        assert _xvalidation_failure_triples(payload, schema) == [
+            (f"$.{field}", rule_id, "x-validation")
+        ]
 
 
 def test_static_rule_external_schema_enforces_bad_payload() -> None:

@@ -7,7 +7,7 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 documentation.workspace = true
-readme = "README-new.md"
+readme = "README.md"
 rust-version.workspace = true
 
 [lib]

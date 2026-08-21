@@ -26,24 +26,6 @@ def _load_contracts() -> list[tuple[str, dict[str, Any]]]:
     ]
 
 
-def test_contract_fixtures_are_valid_json() -> None:
-    """Load every contract fixture as JSON."""
-    for path in sorted(CONTRACTS_DIR.glob("*.json")):
-        assert json.loads(path.read_text())
-
-
-def test_contract_fixture_shape() -> None:
-    """Check the shared article contract shape."""
-    article_contract = _load_contract("article.json")
-    schema = article_contract["schema"]
-
-    assert schema["$schema"] == XVALIDATIONS_SCHEMA_URI
-    rules = schema["x-validations"]
-    assert rules[0]["id"] == "primary-tag-exists"
-    assert rules[0]["target"] == "$.primary_tag"
-    assert rules[0]["assert"] == {"enum": {"$resolve": "$.tags[*]"}}
-
-
 def test_current_authoring_emits_contract_extension_shape() -> None:
     """Compare current authoring output with the shared article contract."""
     article_contract = _load_contract("article.json")

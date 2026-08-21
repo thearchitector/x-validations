@@ -85,7 +85,7 @@ class XValidatedModel(BaseModel):
         by_alias: bool = True,  # skylos: ignore[SKY-S101]
         ref_template: str = DEFAULT_REF_TEMPLATE,
         schema_generator: type[GenerateJsonSchema] = GenerateJsonSchema,
-        mode: "JsonSchemaMode" = DEFAULT_SCHEMA_MODE,
+        mode: JsonSchemaMode = DEFAULT_SCHEMA_MODE,
         union_format: LiteralUnionFormat = "any_of",
     ) -> dict[str, Any]:
         """Generate JSON Schema with root x-validation metadata."""
@@ -102,10 +102,10 @@ class XValidatedModel(BaseModel):
 
 def export_schema(
     model_cls: type[BaseModel],
-    base_schema: "Mapping[str, Any] | None" = None,
+    base_schema: Mapping[str, Any] | None = None,
     *,
     by_alias: bool = True,
-    mode: "JsonSchemaMode" = DEFAULT_SCHEMA_MODE,
+    mode: JsonSchemaMode = DEFAULT_SCHEMA_MODE,
 ) -> dict[str, Any]:
     """Export a Pydantic schema with root x-validation rules."""
     copied: dict[str, Any]
@@ -354,7 +354,7 @@ def _alias_path_for_model(
     current_model: type[BaseModel] | None = model_cls
     aliased_segments: list[Segment] = []
     for segment in path.segments:
-        selectors: "list[Selector]" = []
+        selectors: list[Selector] = []
         next_model: type[BaseModel] | None = None
         segment_had_model_key = False
         for selector in segment.selectors:
@@ -399,7 +399,7 @@ def _join_paths(prefix: Path, path: Path) -> Path:
     return Path((*prefix.segments, *path.segments))
 
 
-def _stable_json(value: "JsonValue") -> str:
+def _stable_json(value: JsonValue) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 

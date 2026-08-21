@@ -1,6 +1,5 @@
 use pretty_assertions::assert_eq;
 use serde_json::{json, Map, Value};
-use xvalidations_core::compiler::generate_compiled_schema;
 use xvalidations_core::{xvalidate, IssueSource, XValidationFailure};
 
 const XVALIDATIONS_SCHEMA_URI: &str =
@@ -41,18 +40,6 @@ fn special_property_schema(property: &str, target: &str) -> Value {
             }
         ]
     })
-}
-
-#[test]
-fn compile_resolves_payload_values_into_enum() {
-    let compiled = generate_compiled_schema(
-        &article_schema(),
-        &json!({"tags": ["python"], "primary_tag": "python"}),
-    )
-    .expect("schema should compile");
-
-    assert!(!compiled.schema.to_string().contains("$resolve"));
-    assert_eq!(compiled.branch_rule_ids, ["primary-tag-exists"]);
 }
 
 #[test]
@@ -333,7 +320,7 @@ fn double_quoted_bracket_union_with_whitespace_validates_each_match() {
 }
 
 #[test]
-fn compiled_schema_copies_defs_referenced_by_assertion_ref() {
+fn assertion_refs_to_defs_are_enforced() {
     let schema = json!({
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "$defs": {
@@ -351,16 +338,13 @@ fn compiled_schema_copies_defs_referenced_by_assertion_ref() {
             }
         ]
     });
-    let compiled = generate_compiled_schema(&schema, &json!({"primary_tag": "python"}))
-        .expect("assertion $ref should compile with copied $defs");
-
     assert_eq!(
-        compiled.schema["$defs"]["AllowedTag"],
-        json!({"const": "python"})
+        xvalidate(&json!({"primary_tag": "python"}), &schema),
+        Ok(())
     );
 
     let failure = xvalidate(&json!({"primary_tag": "rust"}), &schema)
-        .expect_err("copied assertion ref should validate payload");
+        .expect_err("assertion ref should validate payload");
     let XValidationFailure::Validation { issues } = failure else {
         panic!("expected validation failure");
     };

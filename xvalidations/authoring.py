@@ -2,8 +2,9 @@
 
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 if TYPE_CHECKING:
     from xvalidations.models import JsonValue
@@ -44,7 +45,7 @@ class SliceSelector:
 class FilterSelector:
     """Select array items matching a predicate."""
 
-    predicate: "Comparison"
+    predicate: Comparison
 
 
 type Selector = (
@@ -66,14 +67,14 @@ class Path:
 
     segments: tuple[Segment, ...] = ()
 
-    def select(self, *selectors: Selector) -> "Path":
+    def select(self, *selectors: Selector) -> Path:
         """Append a child segment."""
         if not selectors:
             msg = "select() requires at least one selector"
             raise TypeError(msg)
         return Path((*self.segments, Segment(tuple(selectors))))
 
-    def desc(self, *selectors_or_names: Selector | str) -> "Path":
+    def desc(self, *selectors_or_names: Selector | str) -> Path:
         """Append a recursive descent segment."""
         if not selectors_or_names:
             msg = "desc() requires at least one selector"
@@ -84,21 +85,21 @@ class Path:
         )
         return Path((*self.segments, Segment(selectors, recursive=True)))
 
-    def each(self) -> "Path":
+    def each(self) -> Path:
         """Append a wildcard child selector."""
         return self.select(wildcard())
 
-    def at(self, index: int) -> "Path":
+    def at(self, index: int) -> Path:
         """Append an array index selector."""
         return self.select(index_selector(index))
 
     def slice(
         self, start: int | None = None, stop: int | None = None, step: int | None = None
-    ) -> "Path":
+    ) -> Path:
         """Append an array slice selector."""
         return self.select(slice_selector(start, stop, step))
 
-    def where(self, predicate: "Comparison") -> "Path":
+    def where(self, predicate: Comparison) -> Path:
         """Append a filter selector."""
         return self.select(filter_selector(predicate))
 
@@ -106,12 +107,12 @@ class Path:
         """Serialize this path as RFC 9535 JSONPath."""
         return path_to_jsonpath(self)
 
-    def __getattr__(self, name: str) -> "Path":
+    def __getattr__(self, name: str) -> Path:
         if name.startswith("__"):
             raise AttributeError(name)
         return self.select(key(name))
 
-    def __getitem__(self, name: str) -> "Path":
+    def __getitem__(self, name: str) -> Path:
         return self.select(key(name))
 
 
@@ -121,12 +122,12 @@ class Expr:
 
     segments: tuple[KeySelector, ...] = ()
 
-    def __getattr__(self, name: str) -> "Expr":
+    def __getattr__(self, name: str) -> Expr:
         if name.startswith("__"):
             raise AttributeError(name)
         return Expr((*self.segments, key(name)))
 
-    def __getitem__(self, name: str) -> "Expr":
+    def __getitem__(self, name: str) -> Expr:
         return Expr((*self.segments, key(name)))
 
     def __eq__(self, other: object) -> Any:
@@ -154,7 +155,7 @@ class Comparison:
 class ResolveMarker:
     """Placeholder for values resolved at validation time."""
 
-    value: "Path | JsonValue"
+    value: Path | JsonValue
 
 
 @dataclass(frozen=True)
@@ -171,7 +172,7 @@ class XValidationDeclaration:
 
     id: str
     description: str
-    factory: Callable[["XValidationContext"], AuthoredRule]
+    factory: Callable[[XValidationContext], AuthoredRule]
 
 
 @dataclass(frozen=True)
@@ -226,9 +227,7 @@ class XValidationContext:
             raise TypeError(msg)
         return RuleBuilder(path_object)
 
-    def resolve(
-        self, path_object_or_json_constant: "Path | JsonValue"
-    ) -> ResolveMarker:
+    def resolve(self, path_object_or_json_constant: Path | JsonValue) -> ResolveMarker:
         """Create a resolve marker for a path or JSON constant."""
         if isinstance(
             path_object_or_json_constant, str

@@ -3,10 +3,16 @@ from typing import Annotated, Literal
 
 import pytest
 from pydantic import AliasChoices, AliasPath, BaseModel, Field
+from xvalid import XValidationError, xvalidate
 
-from xvalidations import XValidatedModel, XValidationContext, export_schema, xvalidation
+from xvalidations import (
+    InvalidRuleError,
+    XValidatedModel,
+    XValidationContext,
+    export_schema,
+    xvalidation,
+)
 from xvalidations.authoring import AuthoredRule
-from xvalidations.errors import InvalidRuleError
 
 XVALIDATIONS_SCHEMA_URI = (
     "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
@@ -47,7 +53,7 @@ def test_model_without_rules_has_no_xvalidations_key() -> None:
     assert "x-validations" not in Plain.model_json_schema()
 
 
-def test_constant_resolve_lifted_to_xv_def() -> None:
+def test_constant_resolve_enforces_constant_at_runtime() -> None:
     class ConstantRule(XValidatedModel):
         tag: str
 
@@ -56,14 +62,14 @@ def test_constant_resolve_lifted_to_xv_def() -> None:
             return x.target(x.path.tag).assert_schema({"enum": x.resolve(["python"])})
 
     schema = ConstantRule.model_json_schema()
-    rule_assert = schema["x-validations"][0]["assert"]
-    ref = rule_assert["enum"]["$resolve"]
 
-    assert ref.startswith("#/$defs/xv_")
-    assert schema["$defs"][ref.removeprefix("#/$defs/")] == ["python"]
+    assert xvalidate({"tag": "python"}, schema) is None
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate({"tag": "rust"}, schema)
+    assert exc_info.value.errors[0].rule_id == "constant-tag"
 
 
-def test_identical_constants_dedupe_to_same_def() -> None:
+def test_identical_constants_apply_to_every_declared_target() -> None:
     class ConstantRule(XValidatedModel):
         first: str
         second: str
@@ -79,13 +85,14 @@ def test_identical_constants_dedupe_to_same_def() -> None:
             })
 
     schema = ConstantRule.model_json_schema()
-    refs = [rule["assert"]["enum"]["$resolve"] for rule in schema["x-validations"]]
 
-    assert refs[0] == refs[1]
-    assert len(schema["$defs"]) == 1
+    assert xvalidate({"first": "python", "second": "python"}, schema) is None
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate({"first": "rust", "second": "python"}, schema)
+    assert exc_info.value.errors[0].rule_id == "first-tag"
 
 
-def test_different_constants_get_different_defs() -> None:
+def test_different_constants_keep_their_rule_specific_values() -> None:
     class ConstantRule(XValidatedModel):
         first: str
         second: str
@@ -102,10 +109,16 @@ def test_different_constants_get_different_defs() -> None:
 
     schema = ConstantRule.model_json_schema()
 
-    assert len(schema["$defs"]) == 2
+    assert xvalidate({"first": "python", "second": "pydantic"}, schema) is None
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate({"first": "pydantic", "second": "python"}, schema)
+    assert {issue.rule_id for issue in exc_info.value.errors} == {
+        "first-tag",
+        "second-tag",
+    }
 
 
-def test_literals_not_wrapped_in_resolve_stay_inline() -> None:
+def test_literal_assertions_enforce_their_value() -> None:
     class LiteralRule(XValidatedModel):
         tag: str
 
@@ -115,8 +128,10 @@ def test_literals_not_wrapped_in_resolve_stay_inline() -> None:
 
     schema = LiteralRule.model_json_schema()
 
-    assert "$defs" not in schema
-    assert schema["x-validations"][0]["assert"] == {"const": "python"}
+    assert xvalidate({"tag": "python"}, schema) is None
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate({"tag": "rust"}, schema)
+    assert exc_info.value.errors[0].rule_id == "literal-tag"
 
 
 def test_nested_xvalidated_model_rule_rebased_to_root() -> None:
@@ -360,7 +375,7 @@ def test_discriminated_union_xvalidated_models_are_visited() -> None:
 def test_recursive_model_does_not_recurse_forever() -> None:
     class Tree(XValidatedModel):
         name: str
-        children: list["Tree"] = Field(default_factory=list)
+        children: list[Tree] = Field(default_factory=list)
 
     Tree.model_rebuild()
 

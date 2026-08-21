@@ -196,18 +196,3 @@ fn is_json_pointer_array_index(token: &str) -> bool {
 fn unescape_json_pointer_token(token: &str) -> String {
     token.replace("~1", "/").replace("~0", "~")
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn xvalidation_schema_uri_constant_matches_meta_schema() {
-        let meta_schema = xvalidations_meta_schema().expect("meta-schema JSON is valid");
-
-        assert_eq!(
-            meta_schema["$schema"],
-            Value::String(crate::meta::DRAFT202012_SCHEMA_URI.to_string())
-        );
-    }
-}

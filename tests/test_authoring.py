@@ -1,19 +1,21 @@
+from collections.abc import Callable
 from operator import eq
+from typing import Any
 
 import pytest
+from xvalid import XValidationError, xvalidate
 
-from xvalidations.authoring import (
-    AuthoredRule,
-    Path,
-    ResolveMarker,
-    XValidationContext,
-    XValidationDeclaration,
-    filter_selector,
-    key,
-    path_to_jsonpath,
-    predicate_to_jsonpath,
-    xvalidation,
-)
+from xvalidations import XValidatedModel, XValidationContext, xvalidation
+from xvalidations.authoring import AuthoredRule
+
+
+def _exported_target(path: Callable[[XValidationContext], Any]) -> str:
+    class Probe(XValidatedModel):
+        @xvalidation(id="probe", description="Probe path serialization.")
+        def probe(x: XValidationContext) -> AuthoredRule:
+            return x.target(path(x)).assert_schema({})
+
+    return str(Probe.model_json_schema()["x-validations"][0]["target"])
 
 
 @pytest.mark.parametrize(
@@ -29,32 +31,31 @@ from xvalidations.authoring import (
         pytest.param(lambda x: x.path.desc("field_id"), "$..field_id", id="desc"),
     ],
 )
-def test_path_shortcuts_serialize_to_jsonpath(path: object, expected: str) -> None:
-    x = XValidationContext()
-
-    assert path(x).to_jsonpath() == expected
+def test_path_shortcuts_serialize_to_jsonpath(
+    path: Callable[[XValidationContext], Any], expected: str
+) -> None:
+    assert _exported_target(path) == expected
 
 
 def test_selector_union_serializes_as_bracket_list() -> None:
-    path = XValidationContext().path.select(key("a"), key("b"))
-
-    assert path_to_jsonpath(path) == '$["a","b"]'
+    assert (
+        _exported_target(lambda x: x.path.select(x.key("a"), x.key("b")))
+        == '$["a","b"]'
+    )
 
 
 def test_filter_equality_serializes_to_rfc9535() -> None:
-    x = XValidationContext()
-    predicate = x.this.kind == "field"
-    path = x.path.items.where(predicate).id
-
-    assert predicate_to_jsonpath(predicate) == '@.kind == "field"'
-    assert path.to_jsonpath() == '$.items[?(@.kind == "field")].id'
+    assert (
+        _exported_target(lambda x: x.path.items.where(x.this.kind == "field").id)
+        == '$.items[?(@.kind == "field")].id'
+    )
 
 
 def test_filter_inequality_serializes_to_rfc9535() -> None:
-    x = XValidationContext()
-    predicate = x.this.kind != "field"
-
-    assert predicate_to_jsonpath(predicate) == '@.kind != "field"'
+    assert (
+        _exported_target(lambda x: x.path.items.where(x.this.kind != "field"))
+        == '$.items[?(@.kind != "field")]'
+    )
 
 
 def test_filter_rejects_non_json_scalar_rhs() -> None:
@@ -66,12 +67,12 @@ def test_filter_rejects_non_json_scalar_rhs() -> None:
 
 def test_select_without_selectors_raises_type_error() -> None:
     with pytest.raises(TypeError):
-        Path().select()
+        XValidationContext().path.select()
 
 
 def test_desc_without_selectors_raises_type_error() -> None:
     with pytest.raises(TypeError):
-        Path().desc()
+        XValidationContext().path.desc()
 
 
 def test_target_rejects_raw_jsonpath_string() -> None:
@@ -85,41 +86,57 @@ def test_resolve_rejects_raw_jsonpath_string() -> None:
 
 
 def test_resolve_allows_plain_non_path_string_constant() -> None:
-    marker = XValidationContext().resolve("python")
+    class ConstantTag(XValidatedModel):
+        tag: str
 
-    assert marker == ResolveMarker("python")
+        @xvalidation(id="constant-tag", description="Tag must be python.")
+        def constant_tag(x: XValidationContext) -> AuthoredRule:
+            return x.target(x.path.tag).assert_schema({"const": x.resolve("python")})
+
+    schema = ConstantTag.model_json_schema()
+
+    assert xvalidate({"tag": "python"}, schema) is None
+    with pytest.raises(XValidationError):
+        xvalidate({"tag": "rust"}, schema)
 
 
-def test_xvalidation_attaches_rule_declaration_to_function() -> None:
-    @xvalidation(
-        id="primary-tag-exists", description="Primary tag must be present in tags."
-    )
-    def primary_tag_exists(x: XValidationContext) -> AuthoredRule:
-        return x.target(x.path.primary_tag).assert_schema({
-            "enum": x.resolve(x.path.tags.each())
-        })
+def test_xvalidation_decorator_exports_declared_rule() -> None:
+    class Article(XValidatedModel):
+        tags: list[str]
+        primary_tag: str
 
-    declaration = primary_tag_exists.__xvalidation_declaration__
+        @xvalidation(
+            id="primary-tag-exists", description="Primary tag must be present in tags."
+        )
+        def primary_tag_exists(x: XValidationContext) -> AuthoredRule:
+            return x.target(x.path.primary_tag).assert_schema({
+                "enum": x.resolve(x.path.tags.each())
+            })
 
-    assert declaration == XValidationDeclaration(
-        id="primary-tag-exists",
-        description="Primary tag must be present in tags.",
-        factory=primary_tag_exists,
-    )
+    assert Article.model_json_schema()["x-validations"] == [
+        {
+            "id": "primary-tag-exists",
+            "description": "Primary tag must be present in tags.",
+            "target": "$.primary_tag",
+            "assert": {"enum": {"$resolve": "$.tags[*]"}},
+        }
+    ]
 
 
 def test_paths_are_immutable_after_chaining() -> None:
-    root = Path()
+    root = XValidationContext().path
     tags = root.tags
     each_tag = tags.each()
 
-    assert root.to_jsonpath() == "$"
-    assert tags.to_jsonpath() == "$.tags"
-    assert each_tag.to_jsonpath() == "$.tags[*]"
+    assert _exported_target(lambda _x: root) == "$"
+    assert _exported_target(lambda _x: tags) == "$.tags"
+    assert _exported_target(lambda _x: each_tag) == "$.tags[*]"
 
 
 def test_filter_constructor_helper_serializes() -> None:
-    x = XValidationContext()
-    path = x.path.items.select(filter_selector(x.this.kind == "field"))
-
-    assert path.to_jsonpath() == '$.items[?(@.kind == "field")]'
+    assert (
+        _exported_target(
+            lambda x: x.path.items.select(x.filter(x.this.kind == "field"))
+        )
+        == '$.items[?(@.kind == "field")]'
+    )

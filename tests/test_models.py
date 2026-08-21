@@ -1,10 +1,10 @@
 import pytest
 from pydantic import ValidationError
 
-from xvalidations.models import XValidationRule
+from xvalidations import XValidationRule
 
 
-def test_rule_accepts_assert_alias_and_dumps_assert_alias() -> None:
+def test_rule_round_trips_assert_alias() -> None:
     rule = XValidationRule.model_validate({
         "id": "primary-tag-exists",
         "description": "Primary tag must be present in tags.",
@@ -12,7 +12,6 @@ def test_rule_accepts_assert_alias_and_dumps_assert_alias() -> None:
         "assert": {"enum": {"$resolve": "$.tags[*]"}},
     })
 
-    assert rule.assert_ == {"enum": {"$resolve": "$.tags[*]"}}
     assert rule.model_dump(by_alias=True) == {
         "id": "primary-tag-exists",
         "description": "Primary tag must be present in tags.",

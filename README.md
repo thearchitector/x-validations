@@ -11,7 +11,7 @@ uv add xvalidations
 
 `xvalidations` provides the framework authoring xvalidation-enabled models in Python.
 
-There are complimentary `xvalid` packages released to both npm and PyPi that provide the runtime validation logic. 
+There are complimentary `xvalid` packages released to both npm and PyPi that provide the runtime validation logic.
 
 ## Example Usage
 

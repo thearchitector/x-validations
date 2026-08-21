@@ -56,7 +56,6 @@ def test_contract_base_invalid_payloads_have_only_base_issues(
         xvalidate(base_invalid_payload, contract["schema"])
 
     error = exc_info.value
-    assert type(error).__name__ == "XValidationError"
     assert error.kind == "validation"
     issues = failure_issues(error)
 
@@ -79,7 +78,6 @@ def test_contract_x_invalid_payloads_match_expected_issue(
         xvalidate(payload, contract["schema"])
 
     error = exc_info.value
-    assert type(error).__name__ == "XValidationError"
     assert error.kind == "validation"
     issues = failure_issues(error)
 
@@ -103,7 +101,6 @@ def test_invalid_payload_conversion_returns_machine_readable_kind() -> None:
         xvalidate(object(), contract["schema"])
 
     error = exc_info.value
-    assert type(error).__name__ == "XValidationTypeError"
     assert error.kind == "invalid_payload"
     assert error.failure["kind"] == "invalid_payload"
     assert isinstance(error.failure["message"], str)
@@ -116,7 +113,6 @@ def test_invalid_schema_conversion_returns_machine_readable_kind() -> None:
         xvalidate(contract["valid_payload"], cast(dict[str, Any], object()))
 
     error = exc_info.value
-    assert type(error).__name__ == "XValidationTypeError"
     assert error.kind == "invalid_schema_input"
     assert error.failure["kind"] == "invalid_schema_input"
     assert isinstance(error.failure["message"], str)

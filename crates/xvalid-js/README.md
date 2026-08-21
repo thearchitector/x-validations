@@ -7,4 +7,3 @@ Build the JavaScript package with:
 ```bash
 wasm-pack build crates/xvalid-js --target bundler
 ```
-

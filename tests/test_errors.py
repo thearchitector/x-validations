@@ -1,22 +1,44 @@
-from xvalid import ValidationIssue
+import pytest
+from xvalid import XValidationError, xvalidate
 
-from xvalidations.errors import InvalidRuleError, XValidationAuthoringError
+from tests.conftest import Article
+from xvalidations import (
+    InvalidRuleError,
+    XValidatedModel,
+    XValidationAuthoringError,
+    XValidationContext,
+    xvalidation,
+)
+from xvalidations.authoring import AuthoredRule
 
 
 def test_validation_issue_exposes_schema_checking_fields() -> None:
-    issue = ValidationIssue(
-        path="$.primary_tag",
-        message="'python' is not one of ['pydantic']",
-        keyword="enum",
-        source="x-validation",
-        rule_id="primary-tag-exists",
-    )
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate(
+            {"tags": ["pydantic"], "primary_tag": "python"}, Article.model_json_schema()
+        )
 
+    issue = exc_info.value.errors[0]
     assert issue.path == "$.primary_tag"
     assert issue.source == "x-validation"
     assert issue.rule_id == "primary-tag-exists"
 
 
 def test_authoring_errors_live_in_xvalidations() -> None:
-    assert issubclass(InvalidRuleError, XValidationAuthoringError)
-    assert str(InvalidRuleError("bad rule")) == "bad rule"
+    class DuplicateRule(XValidatedModel):
+        first: str
+        second: str
+
+        @xvalidation(id="duplicate", description="First rule.")
+        def first_rule(x: XValidationContext) -> AuthoredRule:
+            return x.target(x.path.first).assert_schema({"type": "string"})
+
+        @xvalidation(id="duplicate", description="Second rule.")
+        def second_rule(x: XValidationContext) -> AuthoredRule:
+            return x.target(x.path.second).assert_schema({"type": "string"})
+
+    with pytest.raises(XValidationAuthoringError) as exc_info:
+        DuplicateRule.model_json_schema()
+
+    assert isinstance(exc_info.value, InvalidRuleError)
+    assert "duplicate" in str(exc_info.value)
