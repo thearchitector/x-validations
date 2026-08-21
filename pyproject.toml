@@ -2,11 +2,25 @@
 name = "xvalidations"
 version = "0.1.0"
 description = "Extra validations in your Pydantic models for better self-describing JSON schemata."
-requires-python = ">=3.13"
+keywords = ["json-schema", "jsonpath", "pydantic", "validation"]
+license = "BSD-3-Clause-Clear"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.13.3",
-    "xvalid-py>=0.1.0",
+    "xvalid-py>=0.1.0,<0.2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/thearchitector/x-validations"
+Issues = "https://github.com/thearchitector/x-validations/issues"
+Repository = "https://github.com/thearchitector/x-validations"
 
 [tool.uv.sources]
 xvalid-py = { workspace = true }
@@ -19,7 +33,7 @@ dev = [
     "maturin>=1.0,<2.0",
     "mypy",
     "prek",
-    "pytest>=9.0.3",
+    "pytest>=9.0.0",
     "pytest-asyncio>=1.3.0",
     "pytest-cov",
     "pytest-crap",
@@ -29,7 +43,8 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-addopts = "-ra -vv --crap --cov xvalidations"
+strict = true
+addopts = "-ra -vv --crap --cov xvalidations --import-mode=importlib"
 testpaths = ["tests", "crates/xvalid-py/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
@@ -39,14 +54,10 @@ asyncio_default_test_loop_scope = "session"
 branch = true
 
 [tool.coverage.report]
-exclude_also = ["if TYPE_CHECKING:"]
+exclude_also = ["TYPE_CHECKING", "NotImplementedError"]
 
 [tool.mypy]
 strict = true
-exclude = ["^tests/"]
-
-[tool.basedpyright]
-ignore = ["tests"]
 
 [tool.ruff]
 unsafe-fixes = false
@@ -54,15 +65,9 @@ extend-include = ["*.md"]
 extend-exclude = ["plans/"]
 
 [tool.ruff.lint]
-extend-select = ["B", "I", "ASYNC", "TC", "SIM", "PL", "TID", "PT", "PTH", "PERF"]
-extend-ignore = ["PLR2004", "PLR0911", "PLR0912", "PLR0913", "TID252"]
-
-[tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["TC"]
-
-[tool.ruff.lint.flake8-type-checking]
-strict = true
-runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+extend-select = ["ANN", "ASYNC", "PYI", "PT", "SIM", "TID", "PERF", "TRY", "PGH003"]
+extend-ignore = ["TID252", "TRY003"]
+preview = true
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "importlib.import_module".msg = "Do not dynamically import modules. Explicitly import them at the top of the file."
@@ -95,5 +100,5 @@ module-name = "xvalidations"
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.11.8,<0.12.0"]
+requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"

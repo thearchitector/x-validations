@@ -4,5 +4,8 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-license = "MIT"
+license = "BSD-3-Clause-Clear"
+repository = "https://github.com/thearchitector/x-validations"
+homepage = "https://github.com/thearchitector/x-validations"
+documentation = "https://github.com/thearchitector/x-validations#readme"
 rust-version = "1.82"

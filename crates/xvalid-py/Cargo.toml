@@ -1,8 +1,13 @@
 [package]
 name = "xvalid-py"
 version = "0.1.0"
+description = "Python native runtime bindings for x-validations."
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README-new.md"
 rust-version.workspace = true
 
 [lib]

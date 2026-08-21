@@ -1,3 +1,4 @@
+import tomllib
 from pathlib import Path
 
 import xvalid
@@ -25,3 +26,20 @@ def test_xvalid_dependency_is_available_without_reexport() -> None:
 
 def test_package_layout_has_no_src_directory() -> None:
     assert not Path("src").exists()
+
+
+def test_package_declares_inline_types() -> None:
+    assert Path("xvalidations/py.typed").is_file()
+
+
+def test_build_backend_excludes_local_tool_artifacts() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text())
+    build_backend = pyproject["tool"]["uv"]["build-backend"]
+
+    assert {
+        "xvalidations/.coverage*",
+        "xvalidations/.skylos*",
+        "xvalidations/.skylos*/**",
+        "xvalidations/__pycache__/**",
+        "xvalidations/**/*.pyc",
+    }.issubset(build_backend["source-exclude"])

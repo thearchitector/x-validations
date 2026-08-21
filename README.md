@@ -3,6 +3,16 @@
 
 Supplemental validators in your Pydantic models for better self-describing JSON schemas.
 
+## Install
+
+```bash
+uv add xvalidations
+```
+
+`xvalidations` provides the framework authoring xvalidation-enabled models in Python.
+
+There are complimentary `xvalid` packages released to both npm and PyPi that provide the runtime validation logic. 
+
 ## Example Usage
 
 ### 1. Add a validation rule
@@ -28,10 +38,12 @@ class Article(XValidatedModel):
 
 ### 2. Export the schema
 
-Export the model schema when you want to share the contract with another service or generate a standalone model.
+Export the model schema when you want to share the contract with another service or validate payloads without the original model.
 
 ```python
-schema = Article.model_json_schema()
+from xvalidations import export_schema
+
+schema = export_schema(Article)
 ```
 
 The exported schema includes your validation rule:
@@ -66,31 +78,32 @@ The exported schema includes your validation rule:
 }
 ```
 
-### 3. Generate a model from the schema
+### 3. Validate data
 
-In external systems, generate a plain Pydantic model from the exported schema:
-
-```bash
-xvalidations-codegen --input article.schema.json --output generated_article.py
-```
-
-### 4. Validate data
-
-Parse with the generated model, then run the schema's x-validations.
+Run the schema's x-validations against a known schema.
 
 ```python
-from generated_article import Article as GeneratedArticle
-from xvalidations import XValidationError, xvalidate
-
-
-model = GeneratedArticle.model_validate(payload)
+from xvalid import xvalidate
 
 try:
-    xvalidate(model, schema=schema)
+    # if you're validating within the same application that's authoring, you can do `xvalidate(payload, export_schema(model))
+    xvalidate(payload, schema)
 except XValidationError as exc:
     assert exc.errors[0].source == "x-validation"
     assert exc.errors[0].rule_id == "primary-tag-exists"
     assert exc.errors[0].path == "$.primary_tag"
+```
+
+or using JavaScript:
+
+```js
+import { xvalidate } from 'xvalid';
+
+try {
+  xvalidate(payload, schema)
+} catch (error) {
+  console.log(error)
+}
 ```
 
 ## `x.path` Reference

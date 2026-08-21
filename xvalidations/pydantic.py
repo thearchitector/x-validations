@@ -45,6 +45,8 @@ type LiteralUnionFormat = Literal["any_of", "primitive_type_array"]
 type ExportMode = Literal["validation", "serialization"]
 type DefsMap = dict[str, JsonValue]
 
+DEFAULT_SCHEMA_MODE: ExportMode = "validation"
+DEFS_FIELD = "$defs"
 XVALIDATIONS_SCHEMA_URI = (
     "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
 )
@@ -83,7 +85,7 @@ class XValidatedModel(BaseModel):
         by_alias: bool = True,  # skylos: ignore[SKY-S101]
         ref_template: str = DEFAULT_REF_TEMPLATE,
         schema_generator: type[GenerateJsonSchema] = GenerateJsonSchema,
-        mode: "JsonSchemaMode" = "validation",
+        mode: "JsonSchemaMode" = DEFAULT_SCHEMA_MODE,
         union_format: LiteralUnionFormat = "any_of",
     ) -> dict[str, Any]:
         """Generate JSON Schema with root x-validation metadata."""
@@ -103,7 +105,7 @@ def export_schema(
     base_schema: "Mapping[str, Any] | None" = None,
     *,
     by_alias: bool = True,
-    mode: "JsonSchemaMode" = "validation",
+    mode: "JsonSchemaMode" = DEFAULT_SCHEMA_MODE,
 ) -> dict[str, Any]:
     """Export a Pydantic schema with root x-validation rules."""
     copied: dict[str, Any]
@@ -133,9 +135,9 @@ def export_schema(
         rules.append(rule)
 
     if defs:
-        copied["$defs"] = defs
-    elif "$defs" in copied:
-        copied.pop("$defs")
+        copied[DEFS_FIELD] = defs
+    elif DEFS_FIELD in copied:
+        copied.pop(DEFS_FIELD)
 
     if rules:
         copied["x-validations"] = [
@@ -192,7 +194,10 @@ def _replace_markers(
 
 
 def iter_xvalidated_models(
-    root: type[BaseModel], *, by_alias: bool = True, mode: ExportMode = "validation"
+    root: type[BaseModel],
+    *,
+    by_alias: bool = True,
+    mode: ExportMode = DEFAULT_SCHEMA_MODE,
 ) -> Iterator[tuple[Path, type[XValidatedModel]]]:
     """Yield reachable x-validated model classes and their root prefixes."""
     active: set[type[BaseModel]] = set()
@@ -236,7 +241,7 @@ def _compile_declaration(
 
 
 def _copy_defs(schema: dict[str, Any]) -> DefsMap:
-    raw_defs = schema.get("$defs")
+    raw_defs = schema.get(DEFS_FIELD)
     if isinstance(raw_defs, dict):
         return cast("DefsMap", copy.deepcopy(raw_defs))
     return {}
