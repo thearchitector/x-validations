@@ -1,0 +1,87 @@
+[project]
+name = "xvalidations"
+version = "0.1.0"
+description = "Extra validations in your Pydantic models for better self-describing JSON schemata."
+readme = "README.md"
+keywords = ["json-schema", "jsonpath", "pydantic", "validation"]
+license = "BSD-3-Clause-Clear"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic>=2,<3",
+]
+
+[project.urls]
+Homepage = "https://github.com/thearchitector/x-validations"
+Issues = "https://github.com/thearchitector/x-validations/issues"
+Repository = "https://github.com/thearchitector/x-validations"
+
+[tool.uv.sources]
+xvalidate = { workspace = true }
+
+[tool.uv.workspace]
+members = [".", "crates/xvalidate-py"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0",
+    "pytest-cov",
+    "xvalidate",
+    "mypy",
+    "prek",
+    "ruff",
+]
+
+[tool.pytest.ini_options]
+strict = true
+addopts = "-ra -vv --cov xvalidations --cov-branch --cov-fail-under=90 --import-mode=importlib"
+testpaths = ["tests", "crates/xvalidate-py/tests"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+exclude_also = ["TYPE_CHECKING", "NotImplementedError"]
+fail_under = 90
+
+[tool.mypy]
+explicit_package_bases = true
+files = ["xvalidations", "crates/xvalidate-py/xvalidate.pyi"]
+strict = true
+
+[tool.ruff]
+unsafe-fixes = false
+extend-include = ["*.md"]
+extend-exclude = ["plans/"]
+
+[tool.ruff.lint]
+extend-select = ["ANN", "ASYNC", "PYI", "PT", "SIM", "TID", "PERF", "TRY", "PGH003"]
+extend-ignore = ["TID252", "TRY003"]
+preview = true
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"importlib.import_module".msg = "Do not dynamically import modules. Explicitly import them at the top of the file."
+"__future__.annotations".msg = "The annotation future statement is disallowed."
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+docstring-code-format = true
+skip-magic-trailing-comma = true
+preview = true
+
+[tool.uv.build-backend]
+module-name = "xvalidations"
+module-root = ""
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"

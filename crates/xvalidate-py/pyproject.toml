@@ -1,0 +1,44 @@
+[project]
+name = "xvalidate"
+version = "0.1.0"
+description = "Standalone Python runtime bindings for x-validations."
+readme = "README.md"
+requires-python = ">=3.14"
+license = "BSD-3-Clause-Clear"
+license-files = ["LICENSE"]
+keywords = ["json-schema", "jsonpath", "validation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Rust",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/thearchitector/x-validations"
+Issues = "https://github.com/thearchitector/x-validations/issues"
+Repository = "https://github.com/thearchitector/x-validations"
+
+[tool.maturin]
+manifest-path = "Cargo.toml"
+bindings = "pyo3"
+include = [{ path = "xvalidate.pyi", format = "sdist" }]
+
+[tool.uv]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "xvalidate.pyi" },
+    { file = "src/**/*.rs" },
+    { file = "../xvalidations-core/Cargo.toml" },
+    { file = "../xvalidations-core/src/**/*.rs" },
+    { file = "../../Cargo.toml" },
+    { file = "../../Cargo.lock" },
+]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

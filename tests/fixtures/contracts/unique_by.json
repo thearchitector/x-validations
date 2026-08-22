@@ -1,0 +1,41 @@
+{
+  "schema": {
+    "$schema": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+    "type": "object",
+    "required": ["fields"],
+    "properties": {
+      "fields": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["field_id"],
+          "properties": {"field_id": {"type": "string"}}
+        }
+      }
+    },
+    "x-validations": [
+      {
+        "id": "unique-field-ids",
+        "target": "$.fields[*]",
+        "assert": {"x-uniqueBy": "$.field_id"}
+      }
+    ]
+  },
+  "valid_payload": {
+    "fields": [{"field_id": "title"}, {"field_id": "summary"}]
+  },
+  "base_invalid_payload": {"fields": [{"name": "title"}]},
+  "expected_base_error": {
+    "path": "$.fields[0]",
+    "source": "base",
+    "rule_id": null
+  },
+  "x_invalid_payload": {
+    "fields": [{"field_id": "title"}, {"field_id": "title"}]
+  },
+  "expected_x_error": {
+    "path": "$.fields[0]",
+    "source": "x-validation",
+    "rule_id": "unique-field-ids"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema": {
+    "$schema": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {"type": "string"},
+            "id": {"type": "string"},
+            "primary": {"type": "string"},
+            "tags": {"type": "array", "items": {"type": "string"}}
+          }
+        }
+      }
+    },
+    "required": ["items"],
+    "x-validations": [
+      {
+        "id": "item-primary-in-tags",
+        "description": "Each field primary must be in field tags.",
+        "target": "$.items[?(@.kind == \"field\")].primary",
+        "assert": {
+          "enum": {"$resolve": "$.items[?(@.kind == \"field\")].tags[*]"}
+        }
+      }
+    ]
+  },
+  "valid_payload": {
+    "items": [
+      {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
+      {"kind": "field", "id": "b", "primary": "green", "tags": ["green"]}
+    ]
+  },
+  "base_invalid_payload": {"items": "not an array"},
+  "expected_base_error": {
+    "path": "$.items",
+    "source": "base",
+    "rule_id": null
+  },
+  "x_invalid_payload": {
+    "items": [
+      {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
+      {"kind": "field", "id": "b", "primary": "red", "tags": ["green"]}
+    ]
+  },
+  "expected_x_error": {
+    "path": "$.items[1].primary",
+    "source": "x-validation",
+    "rule_id": "item-primary-in-tags"
+  }
+}

@@ -1,7 +1,16 @@
-<!-- pragma: no ai -->
 # x-validations
 
 Supplemental validators in your Pydantic models for better self-describing JSON schemas.
+
+## Install
+
+```bash
+uv add xvalidations
+```
+
+`xvalidations` provides the framework for authoring xvalidation-enabled models in Python.
+
+The complementary runtime package is named `xvalidate` on both PyPI and npm.
 
 ## Example Usage
 
@@ -18,21 +27,22 @@ class Article(XValidatedModel):
     primary_tag: str
 
     @xvalidation(
-        id="primary-tag-exists",
-        description="Primary tag must be present in tags.",
+        id="primary-tag-exists", description="Primary tag must be present in tags."
     )
     def primary_tag_exists(x: XValidationContext):
-        return x.target(x.path.primary_tag).assert_schema(
-            {"enum": x.resolve(x.path.tags.each())}
-        )
+        return x.target(x.path.primary_tag).assert_schema({
+            "enum": x.resolve(x.path.tags.each())
+        })
 ```
 
 ### 2. Export the schema
 
-Export the model schema when you want to share the contract with another service or generate a standalone model.
+Export the model schema when you want to share the contract with another service or validate payloads without the original model.
 
 ```python
-schema = Article.model_json_schema()
+from xvalidations import export_schema
+
+schema = export_schema(Article)
 ```
 
 The exported schema includes your validation rule:
@@ -67,31 +77,33 @@ The exported schema includes your validation rule:
 }
 ```
 
-### 3. Generate a model from the schema
+### 3. Validate data
 
-In external systems, generate a plain Pydantic model from the exported schema:
-
-```bash
-xvalidations-codegen --input article.schema.json --output generated_article.py
-```
-
-### 4. Validate data
-
-Parse with the generated model, then run the schema's x-validations.
+Run the schema's x-validations against a known schema.
 
 ```python
-from generated_article import Article as GeneratedArticle
-from xvalidations import XValidationError, xvalidate
-
-
-model = GeneratedArticle.model_validate(payload)
+from xvalidate import XValidationError, xvalidate
 
 try:
-    xvalidate(model, schema=schema)
+    # When authoring and validating in one application, you can also pass
+    # export_schema(Article) directly.
+    xvalidate(payload, schema)
 except XValidationError as exc:
     assert exc.errors[0].source == "x-validation"
     assert exc.errors[0].rule_id == "primary-tag-exists"
     assert exc.errors[0].path == "$.primary_tag"
+```
+
+or using JavaScript:
+
+```js
+import { xvalidate } from "xvalidate";
+
+try {
+  xvalidate(payload, schema)
+} catch (error) {
+  console.log(error)
+}
 ```
 
 ## `x.path` Reference

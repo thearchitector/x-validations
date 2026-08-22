@@ -1,0 +1,22 @@
+[package]
+name = "xvalidations-core"
+version = "0.1.0"
+description = "Rust core validator for x-validations schemas."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+jsonschema = { version = "0.46.3", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+jsonpath-rust = "=1.0.8"
+thiserror = "2"
+
+[dev-dependencies]
+pretty_assertions = "1"

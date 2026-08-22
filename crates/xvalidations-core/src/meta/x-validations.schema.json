@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+  "title": "x-validations exported schema structural contract",
+  "type": "object",
+  "required": ["$schema"],
+  "properties": {
+    "$schema": {
+      "const": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
+    },
+    "$defs": {
+      "type": "object"
+    },
+    "x-validations": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/rule"
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "target", "assert"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "assert": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/xUniqueByPrimitive"
+            },
+            {
+              "$ref": "#/$defs/assertionInput"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "xUniqueByPrimitive": {
+      "type": "object",
+      "required": ["x-uniqueBy"],
+      "properties": {
+        "x-uniqueBy": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "assertionInput": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "not": {
+              "pattern": "^x-"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+__pycache__/
+*.so
+
+dist/
+target/
+crates/xvalidate-js/pkg/
+
+test.py
+.skylos*
+.coverage*
