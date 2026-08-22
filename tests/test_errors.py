@@ -1,5 +1,5 @@
 import pytest
-from xvalid import XValidationError, xvalidate
+from xvalidate import XValidationError, xvalidate
 
 from tests.conftest import Article
 from xvalidations import (
@@ -12,16 +12,16 @@ from xvalidations import (
 from xvalidations.authoring import AuthoredRule
 
 
-def test_validation_issue_exposes_schema_checking_fields() -> None:
+def test_validation_error_exposes_schema_checking_fields() -> None:
     with pytest.raises(XValidationError) as exc_info:
         xvalidate(
             {"tags": ["pydantic"], "primary_tag": "python"}, Article.model_json_schema()
         )
 
-    issue = exc_info.value.errors[0]
-    assert issue.path == "$.primary_tag"
-    assert issue.source == "x-validation"
-    assert issue.rule_id == "primary-tag-exists"
+    error = exc_info.value.errors[0]
+    assert error.path == "$.primary_tag"
+    assert error.source == "x-validation"
+    assert error.rule_id == "primary-tag-exists"
 
 
 def test_authoring_errors_live_in_xvalidations() -> None:

@@ -1,4 +1,3 @@
-<!-- pragma: no ai -->
 # x-validations
 
 Supplemental validators in your Pydantic models for better self-describing JSON schemas.
@@ -9,9 +8,9 @@ Supplemental validators in your Pydantic models for better self-describing JSON 
 uv add xvalidations
 ```
 
-`xvalidations` provides the framework authoring xvalidation-enabled models in Python.
+`xvalidations` provides the framework for authoring xvalidation-enabled models in Python.
 
-There are complimentary `xvalid` packages released to both npm and PyPi that provide the runtime validation logic.
+The complementary runtime package is named `xvalidate` on both PyPI and npm.
 
 ## Example Usage
 
@@ -83,10 +82,11 @@ The exported schema includes your validation rule:
 Run the schema's x-validations against a known schema.
 
 ```python
-from xvalid import xvalidate
+from xvalidate import XValidationError, xvalidate
 
 try:
-    # if you're validating within the same application that's authoring, you can do `xvalidate(payload, export_schema(model))
+    # When authoring and validating in one application, you can also pass
+    # export_schema(Article) directly.
     xvalidate(payload, schema)
 except XValidationError as exc:
     assert exc.errors[0].source == "x-validation"
@@ -97,7 +97,7 @@ except XValidationError as exc:
 or using JavaScript:
 
 ```js
-import { xvalidate } from 'xvalid';
+import { xvalidate } from "xvalidate";
 
 try {
   xvalidate(payload, schema)

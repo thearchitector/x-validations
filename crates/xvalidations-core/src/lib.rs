@@ -1,107 +1,99 @@
 mod artifact;
-pub mod compiler;
+mod compiler;
 mod jsonpath;
 mod meta;
+mod pointer;
 mod resolve;
 mod target;
-pub mod types;
+mod types;
 
 use serde_json::Value;
 
 pub use types::{
-    IssueSource, ValidationIssue, XValidationBindingFailure, XValidationFailure, XValidationRule,
+    ErrorSource, ValidationError, XValidationBindingFailure, XValidationFailure, XValidationRule,
 };
 
 use crate::artifact::prepare_schema;
 use crate::compiler::generate_compiled_schema;
-use crate::meta::xvalidations_meta_schema;
+use crate::meta::XVALIDATIONS_META_VALIDATOR;
+use crate::pointer::{is_array_index, tokens};
 
 pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailure> {
-    validate_xvalidations_meta_schema()?;
     validate_exported_schema(schema)?;
 
     let prepared = prepare_schema(schema)?;
-    validate_draft202012_schema(&prepared.base_schema)?;
-    validate_payload_against_schema(payload, &prepared.base_schema, IssueSource::Base, None)?;
+    let base_validator = jsonschema::validator_for(&prepared.base_schema).map_err(|error| {
+        XValidationFailure::InvalidSchema {
+            message: format!("derived base schema is not valid Draft 2020-12: {error}"),
+        }
+    })?;
+    validate_payload(payload, &base_validator, ErrorSource::Base, None)?;
 
-    let compiled = generate_compiled_schema(schema, payload)?;
-    validate_payload_against_schema(
+    let compiled = generate_compiled_schema(schema, payload, &prepared.rules)?;
+    let compiled_validator = jsonschema::validator_for(&compiled.schema).map_err(|error| {
+        XValidationFailure::InvalidSchema {
+            message: format!("compiled x-validation schema is not valid Draft 2020-12: {error}"),
+        }
+    })?;
+    validate_payload(
         payload,
-        &compiled.schema,
-        IssueSource::XValidation,
+        &compiled_validator,
+        ErrorSource::XValidation,
         Some(&compiled.branch_rule_ids),
     )?;
-    let _rules = prepared.rules;
     Ok(())
 }
 
-fn validate_xvalidations_meta_schema() -> Result<(), XValidationFailure> {
-    let meta_schema = xvalidations_meta_schema()?;
-    jsonschema::draft202012::meta::validate(&meta_schema).map_err(|error| {
-        XValidationFailure::InvalidSchema {
-            message: format!("bundled x-validations meta-schema is invalid: {error}"),
-        }
-    })
-}
-
 fn validate_exported_schema(schema: &Value) -> Result<(), XValidationFailure> {
-    let meta_schema = xvalidations_meta_schema()?;
-    let validator = jsonschema::draft202012::new(&meta_schema).map_err(|error| {
-        XValidationFailure::InvalidSchema {
-            message: format!("could not build x-validations meta-schema validator: {error}"),
-        }
-    })?;
-
-    validator
+    XVALIDATIONS_META_VALIDATOR
         .validate(schema)
         .map_err(|error| XValidationFailure::InvalidSchema {
             message: format!("exported schema failed x-validations preflight: {error}"),
         })
 }
 
-fn validate_draft202012_schema(schema: &Value) -> Result<(), XValidationFailure> {
-    jsonschema::draft202012::meta::validate(schema).map_err(|error| {
-        XValidationFailure::InvalidSchema {
-            message: format!("derived base schema is not valid Draft 2020-12: {error}"),
-        }
-    })
-}
-
-fn validate_payload_against_schema(
+fn validate_payload(
     payload: &Value,
-    schema: &Value,
-    source: IssueSource,
+    validator: &jsonschema::Validator,
+    source: ErrorSource,
     branch_rule_ids: Option<&[String]>,
 ) -> Result<(), XValidationFailure> {
-    let validator = jsonschema::draft202012::new(schema).map_err(|error| {
-        XValidationFailure::InvalidSchema {
-            message: format!("could not build Draft 2020-12 validator: {error}"),
-        }
-    })?;
-
-    let mut errors = validator.iter_errors(payload).collect::<Vec<_>>();
-    errors.sort_by_key(|error| error.instance_path().to_string());
-    if errors.is_empty() {
+    let validation_errors = validator.iter_errors(payload).collect::<Vec<_>>();
+    if validation_errors.is_empty() {
         return Ok(());
     }
 
-    let issues = errors
+    let mut errors = validation_errors
         .iter()
-        .map(|error| ValidationIssue {
+        .map(|error| ValidationError {
             path: json_pointer_to_jsonpath(&error.instance_path().to_string(), payload),
             message: error.to_string(),
             keyword: keyword_from_schema_path(&error.schema_path().to_string()),
             source: source.clone(),
             rule_id: match source {
-                IssueSource::Base => None,
-                IssueSource::XValidation => {
+                ErrorSource::Base => None,
+                ErrorSource::XValidation => {
                     rule_id_from_schema_path(&error.evaluation_path().to_string(), branch_rule_ids)
                 }
             },
         })
-        .collect();
+        .collect::<Vec<_>>();
+    errors.sort_by(|left, right| {
+        (
+            left.path.as_str(),
+            left.rule_id.as_deref().unwrap_or(""),
+            left.keyword.as_deref().unwrap_or(""),
+            left.message.as_str(),
+        )
+            .cmp(&(
+                right.path.as_str(),
+                right.rule_id.as_deref().unwrap_or(""),
+                right.keyword.as_deref().unwrap_or(""),
+                right.message.as_str(),
+            ))
+    });
 
-    Err(XValidationFailure::Validation { issues })
+    Err(XValidationFailure::Validation { errors })
 }
 
 fn rule_id_from_schema_path(
@@ -109,7 +101,7 @@ fn rule_id_from_schema_path(
     branch_rule_ids: Option<&[String]>,
 ) -> Option<String> {
     let branch_rule_ids = branch_rule_ids?;
-    let tokens = json_pointer_tokens(schema_path);
+    let tokens = tokens(schema_path);
     for window in tokens.windows(2) {
         if window[0] == "allOf" {
             let Ok(index) = window[1].parse::<usize>() else {
@@ -122,7 +114,7 @@ fn rule_id_from_schema_path(
 }
 
 fn keyword_from_schema_path(schema_path: &str) -> Option<String> {
-    json_pointer_tokens(schema_path).pop()
+    tokens(schema_path).pop()
 }
 
 fn json_pointer_to_jsonpath(pointer: &str, root: &Value) -> String {
@@ -132,10 +124,9 @@ fn json_pointer_to_jsonpath(pointer: &str, root: &Value) -> String {
 
     let mut path = "$".to_string();
     let mut current = Some(root);
-    for raw_token in pointer.trim_start_matches('/').split('/') {
-        let token = unescape_json_pointer_token(raw_token);
+    for token in tokens(pointer) {
         let next = match current {
-            Some(Value::Array(values)) if is_json_pointer_array_index(&token) => {
+            Some(Value::Array(values)) if is_array_index(&token) => {
                 path.push_str(&format!("[{token}]"));
                 token
                     .parse::<usize>()
@@ -156,17 +147,6 @@ fn json_pointer_to_jsonpath(pointer: &str, root: &Value) -> String {
     path
 }
 
-fn json_pointer_tokens(pointer: &str) -> Vec<String> {
-    if pointer.is_empty() {
-        return Vec::new();
-    }
-    pointer
-        .trim_start_matches('/')
-        .split('/')
-        .map(unescape_json_pointer_token)
-        .collect()
-}
-
 fn append_property_path(path: &mut String, property: &str) {
     if is_identifier(property) {
         path.push('.');
@@ -185,14 +165,4 @@ fn is_identifier(token: &str) -> bool {
     };
     (first == '_' || first.is_ascii_alphabetic())
         && chars.all(|character| character == '_' || character.is_ascii_alphanumeric())
-}
-
-fn is_json_pointer_array_index(token: &str) -> bool {
-    token == "0"
-        || (token.starts_with(['1', '2', '3', '4', '5', '6', '7', '8', '9'])
-            && token.chars().all(|character| character.is_ascii_digit()))
-}
-
-fn unescape_json_pointer_token(token: &str) -> String {
-    token.replace("~1", "/").replace("~0", "~")
 }

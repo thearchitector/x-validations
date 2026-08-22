@@ -35,11 +35,10 @@
     ]
   },
   "base_invalid_payload": {"items": "not an array"},
-  "payload": {
-    "items": [
-      {"kind": "field", "id": "a", "primary": "blue", "tags": ["blue"]},
-      {"kind": "field", "id": "b", "primary": "red", "tags": ["green"]}
-    ]
+  "expected_base_error": {
+    "path": "$.items",
+    "source": "base",
+    "rule_id": null
   },
   "x_invalid_payload": {
     "items": [
@@ -47,7 +46,7 @@
       {"kind": "field", "id": "b", "primary": "red", "tags": ["green"]}
     ]
   },
-  "expected_issue": {
+  "expected_x_error": {
     "path": "$.items[1].primary",
     "source": "x-validation",
     "rule_id": "item-primary-in-tags"

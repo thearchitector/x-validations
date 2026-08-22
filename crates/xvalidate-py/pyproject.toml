@@ -1,9 +1,9 @@
 [project]
-name = "xvalid-py"
+name = "xvalidate"
 version = "0.1.0"
 description = "Standalone Python runtime bindings for x-validations."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = "BSD-3-Clause-Clear"
 license-files = ["LICENSE"]
 keywords = ["json-schema", "jsonpath", "validation"]
@@ -11,7 +11,7 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
     "Typing :: Typed",
 ]
@@ -25,13 +25,13 @@ Repository = "https://github.com/thearchitector/x-validations"
 [tool.maturin]
 manifest-path = "Cargo.toml"
 bindings = "pyo3"
-include = [{ path = "xvalid.pyi", format = "sdist" }]
+include = [{ path = "xvalidate.pyi", format = "sdist" }]
 
 [tool.uv]
 cache-keys = [
     { file = "pyproject.toml" },
     { file = "Cargo.toml" },
-    { file = "xvalid.pyi" },
+    { file = "xvalidate.pyi" },
     { file = "src/**/*.rs" },
     { file = "../xvalidations-core/Cargo.toml" },
     { file = "../xvalidations-core/src/**/*.rs" },

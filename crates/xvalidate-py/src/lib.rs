@@ -1,24 +1,23 @@
-use pyo3::class::basic::CompareOp;
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pythonize::{depythonize, pythonize};
 use serde_json::Value;
 use xvalidations_core::{
-    xvalidate as core_xvalidate, ValidationIssue as CoreValidationIssue, XValidationBindingFailure,
+    xvalidate as core_xvalidate, ValidationError as CoreValidationError, XValidationBindingFailure,
     XValidationFailure,
 };
 
-pyo3::create_exception!(xvalid, ExportedSchemaError, PyValueError);
-pyo3::create_exception!(xvalid, InvalidRuleError, ExportedSchemaError);
-pyo3::create_exception!(xvalid, JsonPathError, ExportedSchemaError);
-pyo3::create_exception!(xvalid, ResolveError, ExportedSchemaError);
-pyo3::create_exception!(xvalid, XValidationTypeError, PyTypeError);
-pyo3::create_exception!(xvalid, XValidationError, PyValueError);
+pyo3::create_exception!(xvalidate, ExportedSchemaError, PyValueError);
+pyo3::create_exception!(xvalidate, InvalidRuleError, ExportedSchemaError);
+pyo3::create_exception!(xvalidate, JsonPathError, ExportedSchemaError);
+pyo3::create_exception!(xvalidate, ResolveError, ExportedSchemaError);
+pyo3::create_exception!(xvalidate, XValidationTypeError, PyTypeError);
+pyo3::create_exception!(xvalidate, XValidationError, PyValueError);
 
 #[pyclass(frozen, skip_from_py_object)]
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct ValidationIssue {
+struct ValidationError {
     #[pyo3(get)]
     path: String,
     #[pyo3(get)]
@@ -31,59 +30,20 @@ struct ValidationIssue {
     rule_id: Option<String>,
 }
 
-#[pymethods]
-impl ValidationIssue {
-    #[new]
-    fn new(
-        path: String,
-        message: String,
-        keyword: Option<String>,
-        source: String,
-        rule_id: Option<String>,
-    ) -> Self {
+impl From<&CoreValidationError> for ValidationError {
+    fn from(error: &CoreValidationError) -> Self {
         Self {
-            path,
-            message,
-            keyword,
-            source,
-            rule_id,
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "ValidationIssue(path={:?}, message={:?}, keyword={:?}, source={:?}, rule_id={:?})",
-            self.path, self.message, self.keyword, self.source, self.rule_id
-        )
-    }
-
-    fn __richcmp__(&self, other: PyRef<'_, ValidationIssue>, op: CompareOp) -> bool {
-        match op {
-            CompareOp::Eq => self == &*other,
-            CompareOp::Ne => self != &*other,
-            _ => false,
+            path: error.path.clone(),
+            message: error.message.clone(),
+            keyword: error.keyword.clone(),
+            source: error.source.as_str().to_string(),
+            rule_id: error.rule_id.clone(),
         }
     }
 }
 
-impl From<&CoreValidationIssue> for ValidationIssue {
-    fn from(issue: &CoreValidationIssue) -> Self {
-        Self {
-            path: issue.path.clone(),
-            message: issue.message.clone(),
-            keyword: issue.keyword.clone(),
-            source: issue.source.as_str().to_string(),
-            rule_id: issue.rule_id.clone(),
-        }
-    }
-}
-
-#[pyfunction]
-fn xvalidate(
-    py: Python<'_>,
-    payload: &Bound<'_, PyAny>,
-    schema: &Bound<'_, PyAny>,
-) -> PyResult<()> {
+#[pyfunction(name = "xvalidate")]
+fn validate(py: Python<'_>, payload: &Bound<'_, PyAny>, schema: &Bound<'_, PyAny>) -> PyResult<()> {
     let payload_value: Value = depythonize(payload).map_err(|error| {
         conversion_failure_to_py_err(
             py,
@@ -106,44 +66,22 @@ fn xvalidate(
 }
 
 fn failure_to_py_err(py: Python<'_>, failure: XValidationFailure) -> PyResult<PyErr> {
-    let exception = match &failure {
-        XValidationFailure::Validation { issues } => {
-            validation_failure_to_py_err(py, &failure, issues)?
-        }
-        XValidationFailure::InvalidSchema { .. } => py
-            .get_type::<ExportedSchemaError>()
-            .call1((failure.to_string(),))?,
-        XValidationFailure::InvalidRule { .. } => py
-            .get_type::<InvalidRuleError>()
-            .call1((failure.to_string(),))?,
-        XValidationFailure::JsonPath { .. } => py
-            .get_type::<JsonPathError>()
-            .call1((failure.to_string(),))?,
-        XValidationFailure::Resolve { .. } => py
-            .get_type::<ResolveError>()
-            .call1((failure.to_string(),))?,
-    };
+    let exception = py
+        .import("xvalidate")?
+        .getattr(failure.exception_name())?
+        .call1((failure.to_string(),))?;
+    if let Some(errors) = failure.errors() {
+        let error_objects = PyList::new(
+            py,
+            errors
+                .iter()
+                .map(|error| Py::new(py, ValidationError::from(error)))
+                .collect::<PyResult<Vec<_>>>()?,
+        )?;
+        exception.setattr("errors", error_objects)?;
+    }
     add_core_failure_attrs(py, &exception, &failure)?;
     Ok(PyErr::from_value(exception))
-}
-
-fn validation_failure_to_py_err<'py>(
-    py: Python<'py>,
-    failure: &XValidationFailure,
-    issues: &[CoreValidationIssue],
-) -> PyResult<Bound<'py, PyAny>> {
-    let issue_objects = PyList::new(
-        py,
-        issues
-            .iter()
-            .map(|issue| Py::new(py, ValidationIssue::from(issue)))
-            .collect::<PyResult<Vec<_>>>()?,
-    )?;
-    let exception = py
-        .get_type::<XValidationError>()
-        .call1((failure.to_string(),))?;
-    exception.setattr("errors", &issue_objects)?;
-    Ok(exception)
 }
 
 fn add_core_failure_attrs(
@@ -194,9 +132,9 @@ fn binding_failure_to_py_object<'py>(
 }
 
 #[pymodule]
-fn xvalid(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(xvalidate, m)?)?;
-    m.add_class::<ValidationIssue>()?;
+fn xvalidate(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(validate, m)?)?;
+    m.add_class::<ValidationError>()?;
     m.add("ExportedSchemaError", py.get_type::<ExportedSchemaError>())?;
     m.add("InvalidRuleError", py.get_type::<InvalidRuleError>())?;
     m.add("JsonPathError", py.get_type::<JsonPathError>())?;
@@ -213,7 +151,7 @@ fn xvalid(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
             "InvalidRuleError",
             "JsonPathError",
             "ResolveError",
-            "ValidationIssue",
+            "ValidationError",
             "XValidationTypeError",
             "XValidationError",
             "xvalidate",

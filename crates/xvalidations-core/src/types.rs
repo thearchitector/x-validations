@@ -4,26 +4,26 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum IssueSource {
+pub enum ErrorSource {
     Base,
     XValidation,
 }
 
-impl IssueSource {
+impl ErrorSource {
     pub fn as_str(&self) -> &'static str {
         match self {
-            IssueSource::Base => "base",
-            IssueSource::XValidation => "x-validation",
+            ErrorSource::Base => "base",
+            ErrorSource::XValidation => "x-validation",
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ValidationIssue {
+pub struct ValidationError {
     pub path: String,
     pub message: String,
     pub keyword: Option<String>,
-    pub source: IssueSource,
+    pub source: ErrorSource,
     pub rule_id: Option<String>,
 }
 
@@ -48,8 +48,8 @@ pub enum XValidationFailure {
     JsonPath { message: String },
     #[error("resolve error: {message}")]
     Resolve { message: String },
-    #[error("{count} validation issue(s)", count = issues.len())]
-    Validation { issues: Vec<ValidationIssue> },
+    #[error("{count} validation error(s)", count = errors.len())]
+    Validation { errors: Vec<ValidationError> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,9 +82,19 @@ impl XValidationFailure {
         }
     }
 
-    pub fn issues(&self) -> Option<&[ValidationIssue]> {
+    pub fn exception_name(&self) -> &'static str {
         match self {
-            XValidationFailure::Validation { issues } => Some(issues),
+            XValidationFailure::InvalidSchema { .. } => "ExportedSchemaError",
+            XValidationFailure::InvalidRule { .. } => "InvalidRuleError",
+            XValidationFailure::JsonPath { .. } => "JsonPathError",
+            XValidationFailure::Resolve { .. } => "ResolveError",
+            XValidationFailure::Validation { .. } => "XValidationError",
+        }
+    }
+
+    pub fn errors(&self) -> Option<&[ValidationError]> {
+        match self {
+            XValidationFailure::Validation { errors } => Some(errors),
             XValidationFailure::InvalidSchema { .. }
             | XValidationFailure::InvalidRule { .. }
             | XValidationFailure::JsonPath { .. }

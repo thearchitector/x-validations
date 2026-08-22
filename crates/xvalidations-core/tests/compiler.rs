@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 use serde_json::{json, Map, Value};
-use xvalidations_core::{xvalidate, IssueSource, XValidationFailure};
+use xvalidations_core::{xvalidate, ErrorSource, XValidationFailure};
 
 const XVALIDATIONS_SCHEMA_URI: &str =
     "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json";
@@ -50,12 +50,12 @@ fn xvalidation_failure_has_rule_id_and_path() {
     )
     .expect_err("x-validation should fail");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].source, IssueSource::XValidation);
-    assert_eq!(issues[0].rule_id.as_deref(), Some("primary-tag-exists"));
-    assert_eq!(issues[0].path, "$.primary_tag");
+    assert_eq!(errors[0].source, ErrorSource::XValidation);
+    assert_eq!(errors[0].rule_id.as_deref(), Some("primary-tag-exists"));
+    assert_eq!(errors[0].path, "$.primary_tag");
 }
 
 #[test]
@@ -93,27 +93,27 @@ fn unique_by_compiles_duplicate_targets_to_false_overlays() {
     )
     .expect_err("duplicate field ids should fail");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
     assert_eq!(
-        issues
+        errors
             .iter()
-            .map(|issue| (
-                issue.path.as_str(),
-                issue.source.clone(),
-                issue.rule_id.as_deref()
+            .map(|error| (
+                error.path.as_str(),
+                error.source.clone(),
+                error.rule_id.as_deref()
             ))
             .collect::<Vec<_>>(),
         [
             (
                 "$.fields[0]",
-                IssueSource::XValidation,
+                ErrorSource::XValidation,
                 Some("unique-field-ids")
             ),
             (
                 "$.fields[2]",
-                IssueSource::XValidation,
+                ErrorSource::XValidation,
                 Some("unique-field-ids")
             )
         ]
@@ -226,11 +226,11 @@ fn double_quoted_bracket_selector_validates() {
     let failure = xvalidate(&json!({"primary-tag": "rust"}), &schema)
         .expect_err("bracket selector should validate matched property");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].path, "$[\"primary-tag\"]");
-    assert_eq!(issues[0].rule_id.as_deref(), Some("primary-tag-python"));
+    assert_eq!(errors[0].path, "$[\"primary-tag\"]");
+    assert_eq!(errors[0].rule_id.as_deref(), Some("primary-tag-python"));
 }
 
 #[test]
@@ -240,12 +240,12 @@ fn double_quoted_bracket_selector_with_single_quote_validates() {
     let failure = xvalidate(&json!({"a'b": "rust"}), &schema)
         .expect_err("escaped bracket selector should validate matched property");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].path, "$[\"a'b\"]");
+    assert_eq!(errors[0].path, "$[\"a'b\"]");
     assert_eq!(
-        issues[0].rule_id.as_deref(),
+        errors[0].rule_id.as_deref(),
         Some("special-property-python")
     );
 }
@@ -257,12 +257,12 @@ fn double_quoted_bracket_selector_with_json_escape_validates() {
     let failure = xvalidate(&json!({"line\nfeed": "rust"}), &schema)
         .expect_err("JSON-escaped bracket selector should validate matched property");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].path, "$[\"line\\nfeed\"]");
+    assert_eq!(errors[0].path, "$[\"line\\nfeed\"]");
     assert_eq!(
-        issues[0].rule_id.as_deref(),
+        errors[0].rule_id.as_deref(),
         Some("special-property-python")
     );
 }
@@ -274,12 +274,12 @@ fn double_quoted_bracket_selector_with_whitespace_validates() {
     let failure = xvalidate(&json!({"a": "rust"}), &schema)
         .expect_err("whitespace bracket selector should validate matched property");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].path, "$.a");
+    assert_eq!(errors[0].path, "$.a");
     assert_eq!(
-        issues[0].rule_id.as_deref(),
+        errors[0].rule_id.as_deref(),
         Some("special-property-python")
     );
 }
@@ -305,18 +305,18 @@ fn double_quoted_bracket_union_with_whitespace_validates_each_match() {
     let failure = xvalidate(&json!({"a": "rust", "b": "rust"}), &schema)
         .expect_err("whitespace bracket union should validate every matched property");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    let mut paths = issues
+    let mut paths = errors
         .iter()
-        .map(|issue| issue.path.as_str())
+        .map(|error| error.path.as_str())
         .collect::<Vec<_>>();
     paths.sort();
     assert_eq!(paths, ["$.a", "$.b"]);
-    assert!(issues
+    assert!(errors
         .iter()
-        .all(|issue| issue.rule_id.as_deref() == Some("letters-python")));
+        .all(|error| error.rule_id.as_deref() == Some("letters-python")));
 }
 
 #[test]
@@ -345,8 +345,43 @@ fn assertion_refs_to_defs_are_enforced() {
 
     let failure = xvalidate(&json!({"primary_tag": "rust"}), &schema)
         .expect_err("assertion ref should validate payload");
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].rule_id.as_deref(), Some("primary-tag-python"));
+    assert_eq!(errors[0].rule_id.as_deref(), Some("primary-tag-python"));
+}
+
+#[test]
+fn validation_errors_are_sorted_by_the_public_contract_key() {
+    let schema = json!({
+        "$schema": XVALIDATIONS_SCHEMA_URI,
+        "type": "object",
+        "properties": {"value": {"type": "string"}},
+        "x-validations": [
+            {
+                "id": "z-rule",
+                "target": "$.value",
+                "assert": {"const": "z"}
+            },
+            {
+                "id": "a-rule",
+                "target": "$.value",
+                "assert": {"const": "a"}
+            }
+        ]
+    });
+
+    let failure =
+        xvalidate(&json!({"value": "invalid"}), &schema).expect_err("both rules should fail");
+    let XValidationFailure::Validation { errors } = failure else {
+        panic!("expected validation failure");
+    };
+
+    assert_eq!(
+        errors
+            .iter()
+            .map(|error| error.rule_id.as_deref())
+            .collect::<Vec<_>>(),
+        [Some("a-rule"), Some("z-rule")]
+    );
 }

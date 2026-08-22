@@ -1,9 +1,9 @@
 import copy
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 import pytest
-from pydantic import AliasChoices, AliasPath, BaseModel, Field
-from xvalid import XValidationError, xvalidate
+from pydantic import AliasChoices, AliasPath, BaseModel, Field, ValidationError
+from xvalidate import XValidationError, xvalidate
 
 from xvalidations import (
     InvalidRuleError,
@@ -112,7 +112,7 @@ def test_different_constants_keep_their_rule_specific_values() -> None:
     assert xvalidate({"first": "python", "second": "pydantic"}, schema) is None
     with pytest.raises(XValidationError) as exc_info:
         xvalidate({"first": "pydantic", "second": "python"}, schema)
-    assert {issue.rule_id for issue in exc_info.value.errors} == {
+    assert {error.rule_id for error in exc_info.value.errors} == {
         "first-tag",
         "second-tag",
     }
@@ -420,3 +420,25 @@ def test_export_does_not_mutate_base_schema_argument() -> None:
 
     assert base_schema == original
     assert "x-validations" in exported
+
+
+def test_model_schema_export_does_not_coerce_public_arguments() -> None:
+    with pytest.raises(ValidationError):
+        Article.model_json_schema(by_alias=cast(bool, "true"))
+
+
+def test_descriptionless_rule_is_exported_without_null_description() -> None:
+    class Descriptionless(XValidatedModel):
+        name: str
+
+        @xvalidation(id="required-name")
+        def required_name(x: XValidationContext) -> AuthoredRule:
+            return x.target(x.path.name).assert_schema({"minLength": 1})
+
+    rule = Descriptionless.model_json_schema()["x-validations"][0]
+
+    assert rule == {
+        "id": "required-name",
+        "target": "$.name",
+        "assert": {"minLength": 1},
+    }

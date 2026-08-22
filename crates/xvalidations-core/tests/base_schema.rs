@@ -1,6 +1,6 @@
 use pretty_assertions::assert_eq;
 use serde_json::{json, Value};
-use xvalidations_core::{xvalidate, IssueSource, XValidationFailure};
+use xvalidations_core::{xvalidate, ErrorSource, XValidationFailure};
 
 const XVALIDATIONS_SCHEMA_URI: &str =
     "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json";
@@ -37,13 +37,13 @@ fn phase1_rejects_base_schema_failure_and_skips_xvalidation() {
     let failure = xvalidate(&json!({"primary_tag": "rust"}), &article_schema())
         .expect_err("base schema failure should raise validation failure");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert!(!issues.is_empty());
-    assert!(issues
+    assert!(!errors.is_empty());
+    assert!(errors
         .iter()
-        .all(|issue| issue.source == IssueSource::Base && issue.rule_id.is_none()));
+        .all(|error| error.source == ErrorSource::Base && error.rule_id.is_none()));
 }
 
 #[test]
@@ -172,7 +172,7 @@ fn phase1_keeps_resolved_defs_that_base_schema_still_references() {
 }
 
 #[test]
-fn base_issue_path_preserves_numeric_object_properties() {
+fn base_error_path_preserves_numeric_object_properties() {
     let failure = xvalidate(
         &json!({"0": 1}),
         &json!({
@@ -185,8 +185,8 @@ fn base_issue_path_preserves_numeric_object_properties() {
     )
     .expect_err("numeric object property should fail string validation");
 
-    let XValidationFailure::Validation { issues } = failure else {
+    let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(issues[0].path, "$[\"0\"]");
+    assert_eq!(errors[0].path, "$[\"0\"]");
 }

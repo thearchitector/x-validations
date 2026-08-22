@@ -68,54 +68,13 @@ pub fn resolve_ref(
 }
 
 fn resolve_json_pointer(reference: &str, document: &Value) -> Result<Value, XValidationFailure> {
-    if reference == "#" {
-        return Ok(document.clone());
-    }
-
-    let mut current = document;
-    for raw_token in reference.trim_start_matches("#/").split('/') {
-        let token = unescape_json_pointer_token(raw_token);
-        current = match current {
-            Value::Object(object) => {
-                object
-                    .get(&token)
-                    .ok_or_else(|| XValidationFailure::Resolve {
-                        message: format!("missing JSON Pointer token {token:?} in {reference:?}"),
-                    })?
-            }
-            Value::Array(values) => {
-                if !is_json_pointer_array_index(&token) {
-                    return Err(XValidationFailure::Resolve {
-                        message: format!("invalid JSON Pointer array token {token:?}"),
-                    });
-                }
-                let index = token
-                    .parse::<usize>()
-                    .map_err(|_| XValidationFailure::Resolve {
-                        message: format!("invalid JSON Pointer array token {token:?}"),
-                    })?;
-                values
-                    .get(index)
-                    .ok_or_else(|| XValidationFailure::Resolve {
-                        message: format!("missing JSON Pointer index {index} in {reference:?}"),
-                    })?
-            }
-            _ => {
-                return Err(XValidationFailure::Resolve {
-                    message: format!("cannot traverse scalar while resolving {reference:?}"),
-                });
-            }
-        };
-    }
-    Ok(current.clone())
-}
-
-fn is_json_pointer_array_index(token: &str) -> bool {
-    token == "0"
-        || (token.starts_with(['1', '2', '3', '4', '5', '6', '7', '8', '9'])
-            && token.chars().all(|character| character.is_ascii_digit()))
-}
-
-fn unescape_json_pointer_token(token: &str) -> String {
-    token.replace("~1", "/").replace("~0", "~")
+    let pointer = reference
+        .strip_prefix('#')
+        .expect("JSON Pointer references were checked by the caller");
+    document
+        .pointer(pointer)
+        .cloned()
+        .ok_or_else(|| XValidationFailure::Resolve {
+            message: format!("JSON Pointer {reference:?} does not exist in the exported schema"),
+        })
 }

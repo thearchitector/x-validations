@@ -1,0 +1,54 @@
+name: CI/CD
+
+on: push
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+          enable-cache: true
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        uses: taiki-e/install-action@wasm-pack
+
+      - name: Install workspace
+        run: uv sync --all-packages
+
+      - name: Lint
+        run: |
+          uv run prek run --all-files
+          git diff --exit-code
+
+      - name: Test
+        parallel:
+          - name: Python
+            run: uv run pytest
+          - name: Rust
+            run: cargo test --workspace
+          - name: WASM Node
+            run: wasm-pack test --node crates/xvalidate-js
+
+      - name: Build
+        parallel:
+          - name: Authoring Library
+            run: uv build
+          - name: Python Runtime Wrapper
+            run: uv build crates/xvalidate-py
+          - name: JavaScript Runtime Wrapper
+            run: wasm-pack build crates/xvalidate-js --target bundler

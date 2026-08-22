@@ -22,11 +22,6 @@ class Article(XValidatedModel):
         })
 
 
-class GeneratedArticle(BaseModel):
-    tags: list[str]
-    primary_tag: str
-
-
 class FieldWidget(BaseModel):
     kind: Literal["field"]
     field_id: str
@@ -53,30 +48,6 @@ class Section(XValidatedModel):
 
 class Form(XValidatedModel):
     sections: list[Section]
-
-
-class GeneratedFieldWidget(BaseModel):
-    kind: Literal["field"]
-    field_id: str
-
-
-class GeneratedTextWidget(BaseModel):
-    kind: Literal["text"]
-    text: str
-
-
-class GeneratedSection(BaseModel):
-    fields: list[str]
-    widgets: list[GeneratedFieldWidget | GeneratedTextWidget]
-
-
-class GeneratedForm(BaseModel):
-    sections: list[GeneratedSection]
-
-
-class GeneratedStaticArticle(BaseModel):
-    tags: list[str]
-    primary_tag: str
 
 
 class StaticArticle(XValidatedModel):
@@ -127,13 +98,3 @@ def bad_form_payload() -> dict[str, object]:
             }
         ]
     }
-
-
-@pytest.fixture
-def good_static_article_payload() -> dict[str, object]:
-    return {"tags": ["python"], "primary_tag": "anything"}
-
-
-@pytest.fixture
-def bad_static_article_payload() -> dict[str, object]:
-    return {"tags": [], "primary_tag": "anything"}

@@ -1,32 +1,34 @@
+use std::collections::{HashSet, VecDeque};
+
 use serde_json::{json, Map, Value};
 
-use crate::artifact::extract_xvalidations;
 use crate::jsonpath::{evaluate_jsonpath, JsonPathMatch, LocationSegment};
 use crate::meta::DRAFT202012_SCHEMA_URI;
+use crate::pointer::referenced_defs;
 use crate::resolve::resolve_placeholders;
 use crate::target::location_to_schema_overlay;
-use crate::types::XValidationFailure;
+use crate::types::{XValidationFailure, XValidationRule};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CompiledSchema {
+pub(crate) struct CompiledSchema {
     pub schema: Value,
     pub branch_rule_ids: Vec<String>,
 }
 
-pub fn generate_compiled_schema(
+pub(crate) fn generate_compiled_schema(
     schema: &Value,
     payload: &Value,
+    rules: &[XValidationRule],
 ) -> Result<CompiledSchema, XValidationFailure> {
     let mut overlays = Vec::new();
     let mut branch_rule_ids = Vec::new();
 
-    for rule in extract_xvalidations(schema)? {
+    for rule in rules {
         let target_matches = evaluate_jsonpath(&rule.target, payload)?;
         let rule_overlays = if let Some(path) = unique_by_projection_path(&rule.assertion)? {
             compile_unique_by(&target_matches, path)?
         } else {
             let assertion = resolve_placeholders(&rule.assertion, payload, schema)?;
-            validate_assertion_schema(&assertion)?;
             target_matches
                 .iter()
                 .map(|target_match| location_to_schema_overlay(&target_match.location, &assertion))
@@ -43,92 +45,44 @@ pub fn generate_compiled_schema(
         "$schema": DRAFT202012_SCHEMA_URI
     });
     if !overlays.is_empty() {
-        let copied_defs = referenced_defs(schema, &Value::Array(overlays.clone()))?;
+        let copied_defs = copy_referenced_defs(schema, &overlays)?;
         if !copied_defs.is_empty() {
             compiled["$defs"] = Value::Object(copied_defs);
         }
         compiled["allOf"] = Value::Array(overlays);
     }
-    validate_compiled_schema_document(&compiled)?;
-
     Ok(CompiledSchema {
         schema: compiled,
         branch_rule_ids,
     })
 }
 
-fn validate_assertion_schema(assertion: &Value) -> Result<(), XValidationFailure> {
-    jsonschema::draft202012::meta::validate(assertion).map_err(|error| {
-        XValidationFailure::InvalidSchema {
-            message: format!("resolved assertion schema is not valid Draft 2020-12: {error}"),
-        }
-    })
-}
-
-fn validate_compiled_schema_document(compiled: &Value) -> Result<(), XValidationFailure> {
-    jsonschema::draft202012::meta::validate(compiled).map_err(|error| {
-        XValidationFailure::InvalidSchema {
-            message: format!("compiled x-validation schema is not valid Draft 2020-12: {error}"),
-        }
-    })
-}
-
-fn referenced_defs(schema: &Value, node: &Value) -> Result<Map<String, Value>, XValidationFailure> {
-    let mut names = Vec::new();
-    collect_referenced_def_names(node, &mut names);
+fn copy_referenced_defs(
+    schema: &Value,
+    overlays: &[Value],
+) -> Result<Map<String, Value>, XValidationFailure> {
+    let mut names = overlays
+        .iter()
+        .flat_map(referenced_defs)
+        .collect::<VecDeque<_>>();
+    let mut discovered = names.iter().cloned().collect::<HashSet<_>>();
 
     let source_defs = schema.get("$defs").and_then(Value::as_object);
     let mut copied = Map::new();
-    let mut index = 0;
-    while index < names.len() {
-        let name = names[index].clone();
-        index += 1;
-        if copied.contains_key(&name) {
-            continue;
-        }
+    while let Some(name) = names.pop_front() {
         let Some(definition) = source_defs.and_then(|defs| defs.get(&name)) else {
             return Err(XValidationFailure::InvalidSchema {
                 message: format!("compiled assertion references missing $defs entry {name:?}"),
             });
         };
-        collect_referenced_def_names(definition, &mut names);
+        for referenced_name in referenced_defs(definition) {
+            if discovered.insert(referenced_name.clone()) {
+                names.push_back(referenced_name);
+            }
+        }
         copied.insert(name, definition.clone());
     }
     Ok(copied)
-}
-
-fn collect_referenced_def_names(node: &Value, names: &mut Vec<String>) {
-    match node {
-        Value::Object(object) => {
-            for key in ["$ref", "$dynamicRef"] {
-                if let Some(Value::String(reference)) = object.get(key) {
-                    if let Some(def_name) = def_name_from_ref(reference) {
-                        if !names.contains(&def_name) {
-                            names.push(def_name);
-                        }
-                    }
-                }
-            }
-            for value in object.values() {
-                collect_referenced_def_names(value, names);
-            }
-        }
-        Value::Array(values) => {
-            for value in values {
-                collect_referenced_def_names(value, names);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn def_name_from_ref(reference: &str) -> Option<String> {
-    let escaped_name = reference.strip_prefix("#/$defs/")?.split('/').next()?;
-    Some(unescape_json_pointer_token(escaped_name))
-}
-
-fn unescape_json_pointer_token(token: &str) -> String {
-    token.replace("~1", "/").replace("~0", "~")
 }
 
 fn unique_by_projection_path(assertion: &Value) -> Result<Option<&str>, XValidationFailure> {

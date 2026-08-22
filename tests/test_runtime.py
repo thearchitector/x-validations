@@ -1,8 +1,9 @@
 import copy
 import json
+from typing import TYPE_CHECKING, cast
 
 import pytest
-from xvalid import (
+from xvalidate import (
     ExportedSchemaError,
     XValidationError,
     XValidationTypeError,
@@ -10,6 +11,9 @@ from xvalid import (
 )
 
 from tests.conftest import Article
+
+if TYPE_CHECKING:
+    from xvalidate import JsonValue
 
 
 def test_xvalidate_accepts_json_loaded_dict() -> None:
@@ -25,16 +29,16 @@ def test_xvalidate_rejects_xvalidation_failure() -> None:
     with pytest.raises(XValidationError) as exc_info:
         xvalidate({"tags": ["python"], "primary_tag": "pydantic"}, schema)
 
-    issue = exc_info.value.errors[0]
-    assert (issue.path, issue.source, issue.rule_id) == (
+    error = exc_info.value.errors[0]
+    assert (error.path, error.source, error.rule_id) == (
         "$.primary_tag",
         "x-validation",
         "primary-tag-exists",
     )
     assert exc_info.value.kind == "validation"
-    assert str(exc_info.value) == "1 validation issue(s)"
+    assert str(exc_info.value) == "1 validation error(s)"
     assert exc_info.value.failure["kind"] == "validation"
-    assert exc_info.value.failure["issues"][0]["path"] == "$.primary_tag"
+    assert exc_info.value.failure["errors"][0]["path"] == "$.primary_tag"
 
 
 def test_xvalidate_rejects_base_schema_failure() -> None:
@@ -43,9 +47,9 @@ def test_xvalidate_rejects_base_schema_failure() -> None:
     with pytest.raises(XValidationError) as exc_info:
         xvalidate({"tags": ["python"]}, schema)
 
-    issue = exc_info.value.errors[0]
-    assert issue.source == "base"
-    assert issue.rule_id is None
+    error = exc_info.value.errors[0]
+    assert error.source == "base"
+    assert error.rule_id is None
 
 
 def test_xvalidate_rejects_invalid_schema_shape() -> None:
@@ -54,14 +58,14 @@ def test_xvalidate_rejects_invalid_schema_shape() -> None:
 
     assert exc_info.value.kind == "invalid_schema"
     assert exc_info.value.failure["kind"] == "invalid_schema"
-    assert isinstance(exc_info.value.failure["message"], str)
+    assert exc_info.value.failure["message"]
 
 
 def test_xvalidate_rejects_non_json_payload_with_structured_type_error() -> None:
     schema = Article.model_json_schema()
 
     with pytest.raises(XValidationTypeError) as exc_info:
-        xvalidate(object(), schema)
+        xvalidate(cast("JsonValue", object()), schema)
 
     assert isinstance(exc_info.value, TypeError)
     assert exc_info.value.kind == "invalid_payload"
@@ -72,7 +76,7 @@ def test_xvalidate_rejects_non_json_payload_with_structured_type_error() -> None
 
 def test_xvalidate_rejects_non_json_schema_with_structured_type_error() -> None:
     with pytest.raises(XValidationTypeError) as exc_info:
-        xvalidate({}, object())
+        xvalidate({}, cast("dict[str, JsonValue]", object()))
 
     assert exc_info.value.kind == "invalid_schema_input"
     assert exc_info.value.failure["kind"] == "invalid_schema_input"

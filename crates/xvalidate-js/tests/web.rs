@@ -2,7 +2,7 @@ use js_sys::Reflect;
 use serde_json::Value;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_test::*;
-use xvalid_js::xvalidate;
+use xvalidate::xvalidate;
 
 const CONTRACTS: &[(&str, &str)] = &[
     (
@@ -12,6 +12,10 @@ const CONTRACTS: &[(&str, &str)] = &[
     (
         "jsonpath_nested.json",
         include_str!("../../../tests/fixtures/contracts/jsonpath_nested.json"),
+    ),
+    (
+        "unique_by.json",
+        include_str!("../../../tests/fixtures/contracts/unique_by.json"),
     ),
 ];
 
@@ -62,7 +66,7 @@ fn contract_valid_payloads_return_ok() {
 }
 
 #[wasm_bindgen_test]
-fn contract_base_invalid_payloads_have_only_base_issues() {
+fn contract_base_invalid_payloads_have_only_base_errors() {
     for (name, contract) in contract_values() {
         if let Some(base_invalid_payload) = contract.get("base_invalid_payload") {
             let failure = xvalidate(to_js(base_invalid_payload), to_js(&contract["schema"]))
@@ -70,28 +74,28 @@ fn contract_base_invalid_payloads_have_only_base_issues() {
             assert_eq!(error_property_string(&failure, "name"), "XValidationError");
             assert_eq!(error_property_string(&failure, "kind"), "validation");
             let failure = error_failure(&failure);
-            let issues = failure["issues"]
+            let errors = failure["errors"]
                 .as_array()
-                .expect("validation failure should contain issue array");
+                .expect("validation failure should contain error array");
 
-            assert!(!issues.is_empty(), "{name}");
-            assert!(issues
+            assert!(!errors.is_empty(), "{name}");
+            assert!(errors
                 .iter()
-                .all(|issue| { issue["source"] == "base" && issue["rule_id"].is_null() }));
+                .all(|error| { error["source"] == "base" && error["rule_id"].is_null() }));
+            assert_eq!(
+                errors[0]["path"], contract["expected_base_error"]["path"],
+                "{name}"
+            );
         }
     }
 }
 
 #[wasm_bindgen_test]
-fn contract_x_invalid_payloads_match_expected_issue() {
+fn contract_x_invalid_payloads_match_expected_error() {
     for (name, contract) in contract_values() {
-        let payload = contract
-            .get("x_invalid_payload")
-            .or_else(|| contract.get("payload"));
-        let expected_issue = contract
-            .get("expected_x_issue")
-            .or_else(|| contract.get("expected_issue"));
-        if let (Some(payload), Some(expected_issue)) = (payload, expected_issue) {
+        let payload = contract.get("x_invalid_payload");
+        let expected_error = contract.get("expected_x_error");
+        if let (Some(payload), Some(expected_error)) = (payload, expected_error) {
             let failure = xvalidate(to_js(payload), to_js(&contract["schema"]))
                 .expect_err("x-invalid payload should throw structured failure");
             assert_eq!(error_property_string(&failure, "name"), "XValidationError");
@@ -100,22 +104,20 @@ fn contract_x_invalid_payloads_match_expected_issue() {
             let failure = error_failure(&failure);
 
             assert_eq!(failure["kind"], "validation", "{name}");
-            assert_eq!(errors.as_array().map(Vec::len), Some(1), "{name}");
+            assert!(!errors
+                .as_array()
+                .expect("errors should be an array")
+                .is_empty());
             assert_eq!(
-                failure["issues"].as_array().map(Vec::len),
-                Some(1),
+                failure["errors"][0]["path"], expected_error["path"],
                 "{name}"
             );
             assert_eq!(
-                failure["issues"][0]["path"], expected_issue["path"],
+                failure["errors"][0]["source"], expected_error["source"],
                 "{name}"
             );
             assert_eq!(
-                failure["issues"][0]["source"], expected_issue["source"],
-                "{name}"
-            );
-            assert_eq!(
-                failure["issues"][0]["rule_id"], expected_issue["rule_id"],
+                failure["errors"][0]["rule_id"], expected_error["rule_id"],
                 "{name}"
             );
         }

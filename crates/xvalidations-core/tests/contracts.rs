@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
-use xvalidations_core::{xvalidate, IssueSource, XValidationFailure};
+use xvalidations_core::{xvalidate, ErrorSource, XValidationFailure};
 
 #[test]
 fn contract_fixtures_validate_in_rust_core() {
@@ -30,49 +30,39 @@ fn contract_fixtures_validate_in_rust_core() {
         if let Some(base_invalid_payload) = contract.get("base_invalid_payload") {
             let failure = xvalidate(base_invalid_payload, schema)
                 .expect_err("base-invalid payload should fail");
-            let XValidationFailure::Validation { issues } = failure else {
+            let XValidationFailure::Validation { errors } = failure else {
                 panic!("expected validation failure for {path:?}");
             };
             assert!(
-                !issues.is_empty(),
-                "base-invalid payload should report issues"
+                !errors.is_empty(),
+                "base-invalid payload should report errors"
             );
-            assert!(issues
+            assert!(errors
                 .iter()
-                .all(|issue| issue.source == IssueSource::Base && issue.rule_id.is_none()));
+                .all(|error| error.source == ErrorSource::Base && error.rule_id.is_none()));
+            assert_error(&errors[0], &contract["expected_base_error"], &path);
         }
 
-        let x_invalid_payload = contract
-            .get("x_invalid_payload")
-            .or_else(|| contract.get("payload"));
-        let expected_issue = contract
-            .get("expected_x_issue")
-            .or_else(|| contract.get("expected_issue"));
-        if let (Some(payload), Some(expected_issue)) = (x_invalid_payload, expected_issue) {
+        if let (Some(payload), Some(expected_error)) = (
+            contract.get("x_invalid_payload"),
+            contract.get("expected_x_error"),
+        ) {
             let failure = xvalidate(payload, schema).expect_err("x-invalid payload should fail");
-            let XValidationFailure::Validation { issues } = failure else {
+            let XValidationFailure::Validation { errors } = failure else {
                 panic!("expected validation failure for {path:?}");
             };
-            assert_eq!(issues.len(), 1, "{path:?}");
-            let issue = &issues[0];
-            assert_eq!(issue.path, expected_issue["path"], "{path:?}");
-            assert_eq!(
-                issue_source_name(&issue.source),
-                expected_issue["source"].as_str(),
-                "{path:?}"
-            );
-            assert_eq!(
-                issue.rule_id.as_deref(),
-                expected_issue["rule_id"].as_str(),
-                "{path:?}"
-            );
+            assert!(!errors.is_empty(), "{path:?}");
+            assert_error(&errors[0], expected_error, &path);
         }
     }
 }
 
-fn issue_source_name(source: &IssueSource) -> Option<&'static str> {
-    match source {
-        IssueSource::Base => Some("base"),
-        IssueSource::XValidation => Some("x-validation"),
-    }
+fn assert_error(error: &xvalidations_core::ValidationError, expected: &Value, path: &Path) {
+    assert_eq!(error.path, expected["path"], "{path:?}");
+    assert_eq!(error.source.as_str(), expected["source"], "{path:?}");
+    assert_eq!(
+        error.rule_id.as_deref(),
+        expected["rule_id"].as_str(),
+        "{path:?}"
+    );
 }

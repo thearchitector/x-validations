@@ -1,15 +1,16 @@
 from collections.abc import Callable
 from operator import eq
-from typing import Any
+from typing import cast
 
 import pytest
-from xvalid import XValidationError, xvalidate
+from pydantic import ValidationError
+from xvalidate import XValidationError, xvalidate
 
 from xvalidations import XValidatedModel, XValidationContext, xvalidation
-from xvalidations.authoring import AuthoredRule
+from xvalidations.authoring import AuthoredRule, Path
 
 
-def _exported_target(path: Callable[[XValidationContext], Any]) -> str:
+def _exported_target(path: Callable[[XValidationContext], Path]) -> str:
     class Probe(XValidatedModel):
         @xvalidation(id="probe", description="Probe path serialization.")
         def probe(x: XValidationContext) -> AuthoredRule:
@@ -32,7 +33,7 @@ def _exported_target(path: Callable[[XValidationContext], Any]) -> str:
     ],
 )
 def test_path_shortcuts_serialize_to_jsonpath(
-    path: Callable[[XValidationContext], Any], expected: str
+    path: Callable[[XValidationContext], Path], expected: str
 ) -> None:
     assert _exported_target(path) == expected
 
@@ -61,23 +62,28 @@ def test_filter_inequality_serializes_to_rfc9535() -> None:
 def test_filter_rejects_non_json_scalar_rhs() -> None:
     x = XValidationContext()
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         eq(x.this.kind, {"kind": "field"})
 
 
 def test_select_without_selectors_raises_type_error() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         XValidationContext().path.select()
 
 
 def test_desc_without_selectors_raises_type_error() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         XValidationContext().path.desc()
 
 
 def test_target_rejects_raw_jsonpath_string() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         XValidationContext().target("$.primary_tag")
+
+
+def test_context_helpers_do_not_coerce_argument_types() -> None:
+    with pytest.raises(ValidationError):
+        XValidationContext.index(cast(int, "0"))
 
 
 def test_resolve_rejects_raw_jsonpath_string() -> None:

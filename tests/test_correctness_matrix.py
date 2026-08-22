@@ -3,7 +3,7 @@ from contextlib import suppress
 from typing import Any
 
 import pytest
-from xvalid import ExportedSchemaError, XValidationError, xvalidate
+from xvalidate import ExportedSchemaError, XValidationError, xvalidate
 
 from tests.conftest import Article, Form, Section, StaticArticle
 from xvalidations import XValidatedModel, XValidationContext, xvalidation
@@ -12,35 +12,6 @@ from xvalidations.authoring import AuthoredRule
 XVALIDATIONS_SCHEMA_URI = (
     "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
 )
-
-
-@pytest.mark.parametrize(
-    ("model_cls", "payload"),
-    [
-        pytest.param(
-            Article, {"tags": ["python"], "primary_tag": "python"}, id="article"
-        ),
-        pytest.param(
-            Form,
-            {
-                "sections": [
-                    {
-                        "fields": ["title"],
-                        "widgets": [{"kind": "field", "field_id": "title"}],
-                    }
-                ]
-            },
-            id="form",
-        ),
-        pytest.param(
-            StaticArticle, {"tags": ["python"], "primary_tag": "anything"}, id="static"
-        ),
-    ],
-)
-def test_exported_schema_validity_for_all_fixtures(
-    model_cls: type[Any], payload: dict[str, Any]
-) -> None:
-    assert xvalidate(payload, model_cls.model_json_schema()) is None
 
 
 def test_path_based_parity_article(
@@ -114,7 +85,7 @@ def test_static_rule_external_schema_enforces_bad_payload() -> None:
         xvalidate({"tags": [], "primary_tag": "anything"}, schema)
 
     assert [
-        (issue.path, issue.source, issue.rule_id) for issue in exc_info.value.errors
+        (error.path, error.source, error.rule_id) for error in exc_info.value.errors
     ] == [("$.tags", "base", None)]
 
 
@@ -155,7 +126,7 @@ def test_static_rule_external_schema_enforces_bad_payload() -> None:
         ),
     ],
 )
-def test_each_example_rule_has_positive_and_negative_fixture(
+def test_each_example_schema_has_positive_and_negative_fixture(
     model_cls: type[Any], good_payload: dict[str, Any], bad_payload: dict[str, Any]
 ) -> None:
     schema = model_cls.model_json_schema()
@@ -244,5 +215,5 @@ def _xvalidation_failure_triples(
     with pytest.raises(XValidationError) as exc_info:
         xvalidate(payload, schema)
     return [
-        (issue.path, issue.rule_id, issue.source) for issue in exc_info.value.errors
+        (error.path, error.rule_id, error.source) for error in exc_info.value.errors
     ]

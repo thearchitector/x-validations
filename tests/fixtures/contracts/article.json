@@ -18,8 +18,13 @@
   },
   "valid_payload": {"tags": ["python"], "primary_tag": "python"},
   "base_invalid_payload": {"tags": ["python"]},
+  "expected_base_error": {
+    "path": "$",
+    "source": "base",
+    "rule_id": null
+  },
   "x_invalid_payload": {"tags": ["python"], "primary_tag": "rust"},
-  "expected_x_issue": {
+  "expected_x_error": {
     "path": "$.primary_tag",
     "source": "x-validation",
     "rule_id": "primary-tag-exists"
