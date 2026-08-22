@@ -1,54 +1,53 @@
-name: CI/CD
+name: CICD
 
 on: push
-
-permissions:
-  contents: read
 
 jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - name: Set up uv and Python
-        uses: astral-sh/setup-uv@v6
+      - name: Install Python
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version-file: "pyproject.toml"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
           enable-cache: true
 
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup Rust cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-
-      - name: Install wasm-pack
-        uses: taiki-e/install-action@wasm-pack
-
-      - name: Install workspace
-        run: uv sync --all-packages
+      - name: Install dependencies
+        run: |
+          curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
+          uv sync --locked --group dev
+          uv pip install pytest-github-actions-annotate-failures
 
       - name: Lint
-        run: |
-          uv run prek run --all-files
-          git diff --exit-code
+        run: uv run prek run --all-files --fail-fast
 
-      - name: Test
-        parallel:
-          - name: Python
-            run: uv run pytest
-          - name: Rust
+      - parallel:
+          - name: Test core
             run: cargo test --workspace
-          - name: WASM Node
-            run: wasm-pack test --node crates/xvalidate-js
+          - name: Test Python
+            run: uv run pytest
+          - name: Test WASM
+            run: wasm-pack test --headless --firefox crates/xvalidate-js
 
-      - name: Build
-        parallel:
-          - name: Authoring Library
+      - parallel:
+          - name: Build xvalidations
             run: uv build
-          - name: Python Runtime Wrapper
+          - name: Build xvalidate-py
             run: uv build crates/xvalidate-py
-          - name: JavaScript Runtime Wrapper
+          - name: Build xvalidate-js
             run: wasm-pack build crates/xvalidate-js --target bundler
