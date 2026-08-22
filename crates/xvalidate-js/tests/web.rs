@@ -1,3 +1,5 @@
+wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
 use js_sys::Reflect;
 use serde_json::Value;
 use wasm_bindgen::JsValue;
