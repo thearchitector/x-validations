@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
-use xvalidations_core::{xvalidate, ErrorSource, XValidationFailure};
+use xvalidations_core::{xvalidate, XValidationFailure};
 
 #[test]
 fn contract_fixtures_validate_in_rust_core() {
@@ -37,9 +37,7 @@ fn contract_fixtures_validate_in_rust_core() {
                 !errors.is_empty(),
                 "base-invalid payload should report errors"
             );
-            assert!(errors
-                .iter()
-                .all(|error| error.source == ErrorSource::Base && error.rule_id.is_none()));
+            assert!(errors.iter().all(|error| error.rule_id.is_none()));
             assert_error(&errors[0], &contract["expected_base_error"], &path);
         }
 
@@ -58,11 +56,30 @@ fn contract_fixtures_validate_in_rust_core() {
 }
 
 fn assert_error(error: &xvalidations_core::ValidationError, expected: &Value, path: &Path) {
-    assert_eq!(error.path, expected["path"], "{path:?}");
-    assert_eq!(error.source.as_str(), expected["source"], "{path:?}");
+    assert_eq!(error.path, expected["path"], "{}", path.display());
     assert_eq!(
         error.rule_id.as_deref(),
         expected["rule_id"].as_str(),
-        "{path:?}"
+        "{}",
+        path.display()
+    );
+}
+
+#[test]
+fn validation_error_serializes_only_the_public_contract_fields() {
+    let value = serde_json::to_value(xvalidations_core::ValidationError {
+        path: "$.value".to_string(),
+        message: "failed".to_string(),
+        rule_id: Some("rule".to_string()),
+    })
+    .expect("validation error should serialize");
+
+    assert_eq!(
+        value,
+        serde_json::json!({
+            "path": "$.value",
+            "message": "failed",
+            "rule_id": "rule"
+        })
     );
 }

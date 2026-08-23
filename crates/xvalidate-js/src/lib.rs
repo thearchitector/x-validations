@@ -10,8 +10,6 @@ const TYPESCRIPT_TYPES: &str = r#"
 export interface ValidationError {
   path: string;
   message: string;
-  keyword: string | null;
-  source: "base" | "x-validation";
   rule_id: string | null;
 }
 

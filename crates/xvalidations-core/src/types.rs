@@ -3,38 +3,10 @@ use serde_json::Value;
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ErrorSource {
-    Base,
-    XValidation,
-}
-
-impl ErrorSource {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ErrorSource::Base => "base",
-            ErrorSource::XValidation => "x-validation",
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValidationError {
     pub path: String,
     pub message: String,
-    pub keyword: Option<String>,
-    pub source: ErrorSource,
     pub rule_id: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct XValidationRule {
-    pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    pub target: String,
-    #[serde(rename = "assert")]
-    pub assertion: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error, Serialize, Deserialize)]
@@ -59,6 +31,7 @@ pub struct XValidationBindingFailure {
 }
 
 impl XValidationBindingFailure {
+    #[must_use]
     pub fn new(kind: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             kind: kind.into(),
@@ -66,42 +39,55 @@ impl XValidationBindingFailure {
         }
     }
 
+    /// Serialize this binding failure for a language binding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
     pub fn to_json_value(&self) -> Result<Value, serde_json::Error> {
         serde_json::to_value(self)
     }
 }
 
 impl XValidationFailure {
-    pub fn kind(&self) -> &'static str {
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
         match self {
-            XValidationFailure::InvalidSchema { .. } => "invalid_schema",
-            XValidationFailure::InvalidRule { .. } => "invalid_rule",
-            XValidationFailure::JsonPath { .. } => "json_path",
-            XValidationFailure::Resolve { .. } => "resolve",
-            XValidationFailure::Validation { .. } => "validation",
+            Self::InvalidSchema { .. } => "invalid_schema",
+            Self::InvalidRule { .. } => "invalid_rule",
+            Self::JsonPath { .. } => "json_path",
+            Self::Resolve { .. } => "resolve",
+            Self::Validation { .. } => "validation",
         }
     }
 
-    pub fn exception_name(&self) -> &'static str {
+    #[must_use]
+    pub const fn exception_name(&self) -> &'static str {
         match self {
-            XValidationFailure::InvalidSchema { .. } => "ExportedSchemaError",
-            XValidationFailure::InvalidRule { .. } => "InvalidRuleError",
-            XValidationFailure::JsonPath { .. } => "JsonPathError",
-            XValidationFailure::Resolve { .. } => "ResolveError",
-            XValidationFailure::Validation { .. } => "XValidationError",
+            Self::InvalidSchema { .. } => "ExportedSchemaError",
+            Self::InvalidRule { .. } => "InvalidRuleError",
+            Self::JsonPath { .. } => "JsonPathError",
+            Self::Resolve { .. } => "ResolveError",
+            Self::Validation { .. } => "XValidationError",
         }
     }
 
+    #[must_use]
     pub fn errors(&self) -> Option<&[ValidationError]> {
         match self {
-            XValidationFailure::Validation { errors } => Some(errors),
-            XValidationFailure::InvalidSchema { .. }
-            | XValidationFailure::InvalidRule { .. }
-            | XValidationFailure::JsonPath { .. }
-            | XValidationFailure::Resolve { .. } => None,
+            Self::Validation { errors } => Some(errors),
+            Self::InvalidSchema { .. }
+            | Self::InvalidRule { .. }
+            | Self::JsonPath { .. }
+            | Self::Resolve { .. } => None,
         }
     }
 
+    /// Serialize this core failure for a language binding.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if serialization fails.
     pub fn to_json_value(&self) -> Result<Value, serde_json::Error> {
         serde_json::to_value(self)
     }

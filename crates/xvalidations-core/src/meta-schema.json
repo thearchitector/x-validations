@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thearchitector.dev/xvalidations/schema.json",
+  "$vocabulary": {
+    "https://json-schema.org/draft/2020-12/vocab/core": true,
+    "https://json-schema.org/draft/2020-12/vocab/applicator": true,
+    "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
+    "https://json-schema.org/draft/2020-12/vocab/validation": true,
+    "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
+    "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
+    "https://json-schema.org/draft/2020-12/vocab/content": true,
+    "https://thearchitector.dev/xvalidations/vocab/x-validations": true
+  },
+  "title": "X-Validations Draft 2020-12 dialect",
+  "type": "object",
+  "allOf": [
+    {"$ref": "https://json-schema.org/draft/2020-12/schema"},
+    {
+      "if": {
+        "anyOf": [
+          {"required": ["x-validations"]},
+          {"required": ["x-constants"]}
+        ]
+      },
+      "then": {
+        "required": ["$schema"],
+        "properties": {
+          "$schema": {
+            "const": "https://thearchitector.dev/xvalidations/schema.json"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "$schema": {
+            "const": "https://thearchitector.dev/xvalidations/schema.json"
+          }
+        },
+        "required": ["$schema"]
+      },
+      "then": {
+        "required": ["x-validations"]
+      }
+    }
+  ],
+  "properties": {
+    "x-validations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/rule"}
+    },
+    "x-constants": {
+      "type": "object",
+      "propertyNames": {"pattern": "^xv-[0-9a-f]{64}$"}
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "target", "assert"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "description": {"type": "string"},
+        "target": {"type": "string", "pattern": "^\\$"},
+        "assert": {"$ref": "#/$defs/assertion"}
+      },
+      "additionalProperties": false
+    },
+    "assertion": {
+      "type": "object",
+      "propertyNames": {
+        "anyOf": [
+          {"not": {"pattern": "^x-"}},
+          {"const": "x-uniqueBy"}
+        ]
+      },
+      "allOf": [
+        {
+          "if": {"required": ["$resolve"]},
+          "then": {"$ref": "#/$defs/resolve"}
+        },
+        {
+          "if": {"required": ["x-uniqueBy"]},
+          "then": {
+            "required": ["x-uniqueBy"],
+            "properties": {
+              "x-uniqueBy": {"type": "string", "pattern": "^\\$"}
+            },
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    "resolve": {
+      "type": "object",
+      "required": ["$resolve"],
+      "properties": {
+        "$resolve": {
+          "type": "string",
+          "anyOf": [
+            {"pattern": "^\\$"},
+            {"pattern": "^#(?:/|$)"}
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

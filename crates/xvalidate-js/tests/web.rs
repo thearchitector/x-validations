@@ -81,9 +81,17 @@ fn contract_base_invalid_payloads_have_only_base_errors() {
                 .expect("validation failure should contain error array");
 
             assert!(!errors.is_empty(), "{name}");
-            assert!(errors
-                .iter()
-                .all(|error| { error["source"] == "base" && error["rule_id"].is_null() }));
+            assert!(errors.iter().all(|error| error["rule_id"].is_null()));
+            assert_eq!(
+                errors[0]
+                    .as_object()
+                    .expect("validation error should be an object")
+                    .len(),
+                3,
+                "{name}"
+            );
+            assert!(errors[0].get("keyword").is_none(), "{name}");
+            assert!(errors[0].get("source").is_none(), "{name}");
             assert_eq!(
                 errors[0]["path"], contract["expected_base_error"]["path"],
                 "{name}"
@@ -115,13 +123,11 @@ fn contract_x_invalid_payloads_match_expected_error() {
                 "{name}"
             );
             assert_eq!(
-                failure["errors"][0]["source"], expected_error["source"],
-                "{name}"
-            );
-            assert_eq!(
                 failure["errors"][0]["rule_id"], expected_error["rule_id"],
                 "{name}"
             );
+            assert!(failure["errors"][0].get("keyword").is_none(), "{name}");
+            assert!(failure["errors"][0].get("source").is_none(), "{name}");
         }
     }
 }
@@ -167,4 +173,21 @@ fn invalid_schema_conversion_returns_machine_readable_kind() {
 
     assert_eq!(failure["kind"], "invalid_schema_input");
     assert!(failure["message"].is_string());
+}
+
+#[wasm_bindgen_test]
+fn boolean_schemas_are_supported() {
+    let payload = serde_json::json!({"value": 1});
+
+    xvalidate(to_js(&payload), to_js(&Value::Bool(true)))
+        .expect("true schema should accept every payload");
+
+    let failure = xvalidate(to_js(&payload), to_js(&Value::Bool(false)))
+        .expect_err("false schema should reject every payload");
+    let failure = error_failure(&failure);
+
+    assert!(failure["errors"]
+        .as_array()
+        .is_some_and(|errors| !errors.is_empty()));
+    assert!(failure["errors"][0]["rule_id"].is_null());
 }

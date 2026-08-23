@@ -18,7 +18,7 @@ try:
     xvalidate(payload, schema)
 except XValidationError as error:
     first = error.errors[0]
-    print(first.path, first.rule_id, first.keyword)
+    print(first.path, first.message, first.rule_id)
 ```
 
 Each item in `error.errors` is a `ValidationError` propagated directly from the

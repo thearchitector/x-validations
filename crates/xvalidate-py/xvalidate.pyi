@@ -2,12 +2,11 @@ from typing import Literal, TypedDict
 
 type JsonScalar = None | bool | int | float | str
 type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
+type JsonSchema = bool | dict[str, JsonValue]
 
 class ValidationErrorData(TypedDict):
     path: str
     message: str
-    keyword: str | None
-    source: Literal["base", "x-validation"]
     rule_id: str | None
 
 class ValidationFailure(TypedDict):
@@ -25,8 +24,6 @@ class ConversionFailure(TypedDict):
 class ValidationError:
     path: str
     message: str
-    keyword: str | None
-    source: Literal["base", "x-validation"]
     rule_id: str | None
 
 class ExportedSchemaError(ValueError):
@@ -46,4 +43,4 @@ class XValidationError(ValueError):
     kind: Literal["validation"]
     errors: list[ValidationError]
 
-def xvalidate(payload: JsonValue, schema: dict[str, JsonValue]) -> None: ...
+def xvalidate(payload: JsonValue, schema: JsonSchema) -> None: ...

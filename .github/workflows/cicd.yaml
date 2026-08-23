@@ -2,8 +2,12 @@ name: CICD
 
 on: push
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  ci:
+  lint-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,7 +46,9 @@ jobs:
           - name: Test Python
             run: uv run pytest
           - name: Test WASM
-            run: wasm-pack test --headless --firefox crates/xvalidate-js
+            run: |
+              wasm-pack test --headless --firefox crates/xvalidate-js
+              wasm-pack test --headless --chrome crates/xvalidate-js
 
       - parallel:
           - name: Build xvalidations

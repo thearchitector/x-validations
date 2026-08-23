@@ -1,6 +1,12 @@
-use std::collections::HashSet;
+use std::fmt::Write;
 
 use serde_json::Value;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) enum LocationSegment {
+    Property(String),
+    Index(usize),
+}
 
 pub(crate) fn tokens(pointer: &str) -> Vec<String> {
     if pointer.is_empty() {
@@ -23,52 +29,75 @@ pub(crate) fn is_array_index(token: &str) -> bool {
             && token.chars().all(|character| character.is_ascii_digit()))
 }
 
-pub(crate) fn def_name(reference: &str) -> Option<String> {
-    let escaped_name = reference.strip_prefix("#/$defs/")?.split('/').next()?;
-    Some(decode_token(escaped_name))
+pub(crate) fn join(pointer: &str, token: &str) -> String {
+    format!("{pointer}/{}", token.replace('~', "~0").replace('/', "~1"))
 }
 
-pub(crate) fn referenced_defs(node: &Value) -> HashSet<String> {
-    let mut names = HashSet::new();
-    walk(node, &mut |object| {
-        for key in ["$ref", "$dynamicRef"] {
-            if let Some(Value::String(reference)) = object.get(key) {
-                if let Some(name) = def_name(reference) {
-                    names.insert(name);
-                }
-            }
-        }
-    });
-    names
+pub(crate) fn is_ancestor(ancestor: &str, descendant: &str) -> bool {
+    ancestor.is_empty()
+        || descendant == ancestor
+        || descendant
+            .strip_prefix(ancestor)
+            .is_some_and(|suffix| suffix.starts_with('/'))
 }
 
-pub(crate) fn resolved_defs(node: &Value) -> HashSet<String> {
-    let mut names = HashSet::new();
-    walk(node, &mut |object| {
-        if object.len() == 1 {
-            if let Some(Value::String(reference)) = object.get("$resolve") {
-                if let Some(name) = def_name(reference) {
-                    names.insert(name);
-                }
+pub(crate) fn location_from_pointer(pointer: &str, root: &Value) -> Vec<LocationSegment> {
+    let mut location = Vec::new();
+    let mut current = Some(root);
+    for token in tokens(pointer) {
+        match current {
+            Some(Value::Array(values)) if is_array_index(&token) => {
+                let index = token
+                    .parse::<usize>()
+                    .expect("array-index token was checked before parsing");
+                location.push(LocationSegment::Index(index));
+                current = values.get(index);
+            }
+            Some(Value::Object(object)) => {
+                location.push(LocationSegment::Property(token.clone()));
+                current = object.get(&token);
+            }
+            _ => {
+                location.push(LocationSegment::Property(token));
+                current = None;
             }
         }
-    });
-    names
-}
-
-fn walk(node: &Value, visit: &mut impl FnMut(&serde_json::Map<String, Value>)) {
-    match node {
-        Value::Object(object) => {
-            visit(object);
-            for value in object.values() {
-                walk(value, visit);
-            }
-        }
-        Value::Array(values) => {
-            for value in values {
-                walk(value, visit);
-            }
-        }
-        _ => {}
     }
+    location
+}
+
+pub(crate) fn location_to_jsonpath(location: &[LocationSegment]) -> String {
+    let mut path = "$".to_string();
+    for segment in location {
+        match segment {
+            LocationSegment::Index(index) => {
+                write!(path, "[{index}]").expect("writing to a String cannot fail");
+            }
+            LocationSegment::Property(property) if is_identifier(property) => {
+                path.push('.');
+                path.push_str(property);
+            }
+            LocationSegment::Property(property) => {
+                let quoted = serde_json::to_string(property)
+                    .expect("serializing a JSON pointer token string cannot fail");
+                path.push('[');
+                path.push_str(&quoted);
+                path.push(']');
+            }
+        }
+    }
+    path
+}
+
+pub(crate) fn pointer_to_jsonpath(pointer: &str, root: &Value) -> String {
+    location_to_jsonpath(&location_from_pointer(pointer, root))
+}
+
+fn is_identifier(token: &str) -> bool {
+    let mut chars = token.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    (first == '_' || first.is_ascii_alphabetic())
+        && chars.all(|character| character == '_' || character.is_ascii_alphanumeric())
 }

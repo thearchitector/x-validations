@@ -3,14 +3,8 @@ use std::collections::HashSet;
 use jsonpath_rust::JsonPath;
 use serde_json::Value;
 
-use crate::pointer::is_array_index;
+use crate::pointer::{is_array_index, LocationSegment};
 use crate::types::XValidationFailure;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum LocationSegment {
-    Property(String),
-    Index(usize),
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct JsonPathMatch {

@@ -23,10 +23,6 @@ struct ValidationError {
     #[pyo3(get)]
     message: String,
     #[pyo3(get)]
-    keyword: Option<String>,
-    #[pyo3(get)]
-    source: String,
-    #[pyo3(get)]
     rule_id: Option<String>,
 }
 
@@ -35,8 +31,6 @@ impl From<&CoreValidationError> for ValidationError {
         Self {
             path: error.path.clone(),
             message: error.message.clone(),
-            keyword: error.keyword.clone(),
-            source: error.source.as_str().to_string(),
             rule_id: error.rule_id.clone(),
         }
     }

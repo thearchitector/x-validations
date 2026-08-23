@@ -1,12 +1,12 @@
 use pretty_assertions::assert_eq;
 use serde_json::{json, Map, Value};
-use xvalidations_core::{xvalidate, ErrorSource, XValidationFailure};
+use xvalidations_core::{xvalidate, XValidationFailure};
 
-const XVALIDATIONS_SCHEMA_URI: &str =
-    "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json";
+const XVALIDATIONS_SCHEMA_URI: &str = "https://thearchitector.dev/xvalidations/schema.json";
 
 fn article_schema() -> Value {
     json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "required": ["tags", "primary_tag"],
@@ -29,6 +29,7 @@ fn special_property_schema(property: &str, target: &str) -> Value {
     let mut properties = Map::new();
     properties.insert(property.to_string(), json!({"type": "string"}));
     json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "properties": properties,
@@ -53,14 +54,14 @@ fn xvalidation_failure_has_rule_id_and_path() {
     let XValidationFailure::Validation { errors } = failure else {
         panic!("expected validation failure");
     };
-    assert_eq!(errors[0].source, ErrorSource::XValidation);
     assert_eq!(errors[0].rule_id.as_deref(), Some("primary-tag-exists"));
     assert_eq!(errors[0].path, "$.primary_tag");
 }
 
 #[test]
-fn unique_by_compiles_duplicate_targets_to_false_overlays() {
+fn unique_by_reports_duplicate_targets_directly() {
     let schema = json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "properties": {
@@ -99,29 +100,17 @@ fn unique_by_compiles_duplicate_targets_to_false_overlays() {
     assert_eq!(
         errors
             .iter()
-            .map(|error| (
-                error.path.as_str(),
-                error.source.clone(),
-                error.rule_id.as_deref()
-            ))
+            .map(|error| (error.path.as_str(), error.rule_id.as_deref()))
             .collect::<Vec<_>>(),
         [
-            (
-                "$.fields[0]",
-                ErrorSource::XValidation,
-                Some("unique-field-ids")
-            ),
-            (
-                "$.fields[2]",
-                ErrorSource::XValidation,
-                Some("unique-field-ids")
-            )
+            ("$.fields[0]", Some("unique-field-ids")),
+            ("$.fields[2]", Some("unique-field-ids"))
         ]
     );
 }
 
 #[test]
-fn compiled_schema_validation_rejects_invalid_json_schema_keyword_shape_inside_assertion() {
+fn direct_assertion_compilation_rejects_invalid_json_schema_keyword_shape() {
     let mut schema = article_schema();
     schema["x-validations"][0]["assert"] = json!({"type": 42});
 
@@ -180,6 +169,7 @@ fn jsonpath_syntax_error_reports_jsonpath() {
 #[test]
 fn unique_by_non_singleton_projection_reports_invalid_rule() {
     let schema = json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "properties": {
@@ -209,6 +199,7 @@ fn unique_by_non_singleton_projection_reports_invalid_rule() {
 #[test]
 fn double_quoted_bracket_selector_validates() {
     let schema = json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "properties": {
@@ -287,6 +278,7 @@ fn double_quoted_bracket_selector_with_whitespace_validates() {
 #[test]
 fn double_quoted_bracket_union_with_whitespace_validates_each_match() {
     let schema = json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "properties": {
@@ -312,7 +304,7 @@ fn double_quoted_bracket_union_with_whitespace_validates_each_match() {
         .iter()
         .map(|error| error.path.as_str())
         .collect::<Vec<_>>();
-    paths.sort();
+    paths.sort_unstable();
     assert_eq!(paths, ["$.a", "$.b"]);
     assert!(errors
         .iter()
@@ -322,6 +314,7 @@ fn double_quoted_bracket_union_with_whitespace_validates_each_match() {
 #[test]
 fn assertion_refs_to_defs_are_enforced() {
     let schema = json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "$defs": {
             "AllowedTag": {"const": "python"}
@@ -352,8 +345,152 @@ fn assertion_refs_to_defs_are_enforced() {
 }
 
 #[test]
+fn unmatched_targets_skip_bindings_and_assertion_compilation() {
+    let schema = json!({
+        "$id": "urn:test:unmatched",
+        "$schema": XVALIDATIONS_SCHEMA_URI,
+        "type": "object",
+        "x-validations": [
+            {
+                "id": "bad-binding",
+                "target": "$.missing",
+                "assert": {"enum": {"$resolve": "#/does-not-exist"}}
+            },
+            {
+                "id": "bad-schema",
+                "target": "$.also_missing",
+                "assert": {"type": 42}
+            }
+        ]
+    });
+
+    assert_eq!(xvalidate(&json!({}), &schema), Ok(()));
+}
+
+#[test]
+fn nested_assertion_failures_use_absolute_instance_paths() {
+    let schema = json!({
+        "$id": "urn:test:nested-target-path",
+        "$schema": XVALIDATIONS_SCHEMA_URI,
+        "type": "object",
+        "x-validations": [{
+            "id": "nested-name",
+            "target": "$.groups[*]",
+            "assert": {
+                "type": "object",
+                "properties": {
+                    "members": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {"name": {"const": "ok"}}
+                        }
+                    }
+                }
+            }
+        }]
+    });
+    let XValidationFailure::Validation { errors } = xvalidate(
+        &json!({"groups": [{"members": [{"name": "bad"}]}]}),
+        &schema,
+    )
+    .expect_err("nested target should fail") else {
+        panic!("expected validation failure")
+    };
+
+    assert_eq!(errors[0].path, "$.groups[0].members[0].name");
+    assert_eq!(errors[0].rule_id.as_deref(), Some("nested-name"));
+}
+
+#[test]
+fn assertion_uri_normalization_supports_anchors_nested_ids_and_dynamic_refs() {
+    let schema = json!({
+        "$id": "https://example.test/schemas/root",
+        "$schema": XVALIDATIONS_SCHEMA_URI,
+        "$defs": {
+            "Anchored": {"$anchor": "allowed", "const": "anchor"},
+            "Nested": {
+                "$id": "nested",
+                "$anchor": "nestedAllowed",
+                "const": "nested"
+            },
+            "Dynamic": {"$dynamicAnchor": "dynamicAllowed", "const": "dynamic"}
+        },
+        "type": "object",
+        "x-validations": [
+            {"id": "anchor", "target": "$.anchor", "assert": {"$ref": "#allowed"}},
+            {"id": "nested", "target": "$.nested", "assert": {"$ref": "nested#nestedAllowed"}},
+            {"id": "dynamic", "target": "$.dynamic", "assert": {"$dynamicRef": "#dynamicAllowed"}}
+        ]
+    });
+    assert_eq!(
+        xvalidate(
+            &json!({"anchor": "anchor", "nested": "nested", "dynamic": "dynamic"}),
+            &schema
+        ),
+        Ok(())
+    );
+
+    let XValidationFailure::Validation { errors } = xvalidate(
+        &json!({"anchor": "bad", "nested": "bad", "dynamic": "bad"}),
+        &schema,
+    )
+    .expect_err("all URI-based assertions should fail") else {
+        panic!("expected validation failure")
+    };
+    assert_eq!(
+        errors
+            .iter()
+            .map(|error| (error.path.as_str(), error.rule_id.as_deref()))
+            .collect::<Vec<_>>(),
+        [
+            ("$.anchor", Some("anchor")),
+            ("$.dynamic", Some("dynamic")),
+            ("$.nested", Some("nested"))
+        ]
+    );
+}
+
+#[test]
+fn unique_by_error_contract_is_deterministic() {
+    let schema = json!({
+        "$id": "urn:test:unique-contract",
+        "$schema": XVALIDATIONS_SCHEMA_URI,
+        "x-validations": [{
+            "id": "unique",
+            "target": "$.items[*]",
+            "assert": {"x-uniqueBy": "$.id"}
+        }]
+    });
+    let XValidationFailure::Validation { errors } =
+        xvalidate(&json!({"items": [{"id": "same"}, {"id": "same"}]}), &schema)
+            .expect_err("duplicate projections should fail")
+    else {
+        panic!("expected validation failure")
+    };
+    assert_eq!(
+        errors,
+        [
+            xvalidations_core::ValidationError {
+                path: "$.items[0]".to_string(),
+                message: "x-uniqueBy projection \"$.id\" produced duplicate value \"same\""
+                    .to_string(),
+                rule_id: Some("unique".to_string()),
+            },
+            xvalidations_core::ValidationError {
+                path: "$.items[1]".to_string(),
+                message: "x-uniqueBy projection \"$.id\" produced duplicate value \"same\""
+                    .to_string(),
+                rule_id: Some("unique".to_string()),
+            }
+        ]
+    );
+}
+
+#[test]
 fn validation_errors_are_sorted_by_the_public_contract_key() {
     let schema = json!({
+        "$id": "urn:test:compiler",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "properties": {"value": {"type": "string"}},

@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Literal, NotRequired, TypedDict, cast
+from typing import NotRequired, TypedDict, cast
 
 import pytest
 from xvalidate import XValidationError, XValidationTypeError, xvalidate
@@ -14,14 +14,11 @@ type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
 class ValidationErrorData(TypedDict):
     path: str
     message: str
-    keyword: str | None
-    source: Literal["base", "x-validation"]
     rule_id: str | None
 
 
 class ExpectedError(TypedDict):
     path: str
-    source: Literal["base", "x-validation"]
     rule_id: str | None
 
 
@@ -76,7 +73,8 @@ def test_contract_base_invalid_payloads_have_only_base_errors(
     errors = failure_errors(error)
 
     assert errors
-    assert all(item["source"] == "base" and item["rule_id"] is None for item in errors)
+    assert all(item["rule_id"] is None for item in errors)
+    assert set(errors[0]) == {"path", "message", "rule_id"}
     assert errors[0]["path"] == contract["expected_base_error"]["path"]
 
 
@@ -101,10 +99,9 @@ def test_contract_x_invalid_payloads_match_expected_error(
     assert error.errors
     assert errors
     assert errors[0]["path"] == expected_error["path"]
-    assert errors[0]["source"] == expected_error["source"]
     assert errors[0]["rule_id"] == expected_error["rule_id"]
+    assert set(errors[0]) == {"path", "message", "rule_id"}
     assert error.errors[0].path == expected_error["path"]
-    assert error.errors[0].source == expected_error["source"]
     assert error.errors[0].rule_id == expected_error["rule_id"]
 
 
@@ -130,3 +127,13 @@ def test_invalid_schema_conversion_returns_machine_readable_kind() -> None:
     assert error.kind == "invalid_schema_input"
     assert error.failure["kind"] == "invalid_schema_input"
     assert error.failure["message"]
+
+
+def test_boolean_schemas_are_supported() -> None:
+    xvalidate({"value": 1}, True)
+
+    with pytest.raises(XValidationError) as exc_info:
+        xvalidate({"value": 1}, False)
+
+    assert exc_info.value.errors
+    assert exc_info.value.errors[0].rule_id is None
