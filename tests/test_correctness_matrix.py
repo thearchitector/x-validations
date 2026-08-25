@@ -3,15 +3,13 @@ from contextlib import suppress
 from typing import Any
 
 import pytest
+from pydantic import BaseModel
 from xvalidate import ExportedSchemaError, XValidationError, xvalidate
 
 from tests.conftest import Article, Form, Section, StaticArticle
-from xvalidations import XValidatedModel, XValidationContext, xvalidation
-from xvalidations.authoring import AuthoredRule
+from xvalidations import ValidationRule, XValidationContext, xvalidation
 
-XVALIDATIONS_SCHEMA_URI = (
-    "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
-)
+XVALIDATIONS_SCHEMA_URI = "https://thearchitector.dev/xvalidations/schema.json"
 
 
 def test_path_based_parity_article(
@@ -20,8 +18,8 @@ def test_path_based_parity_article(
     bad_article_payload: dict[str, object],
 ) -> None:
     assert xvalidate(good_article_payload, article_schema) is None
-    assert _xvalidation_failure_triples(bad_article_payload, article_schema) == [
-        ("$.primary_tag", "primary-tag-exists", "x-validation")
+    assert _xvalidation_failures(bad_article_payload, article_schema) == [
+        ("$.primary_tag", "primary-tag-exists")
     ]
 
 
@@ -31,51 +29,51 @@ def test_path_based_parity_nested_form(
     schema = Form.model_json_schema()
 
     assert xvalidate(good_form_payload, schema) is None
-    assert _xvalidation_failure_triples(bad_form_payload, schema) == [
-        (
-            "$.sections[0].widgets[0].field_id",
-            "section-widget-field-exists",
-            "x-validation",
-        )
+    assert _xvalidation_failures(bad_form_payload, schema) == [
+        ("$.sections[0].widgets[0].field_id", "section-widget-field-exists")
     ]
 
 
-def test_local_rule_rebasing_exports_once_per_reachable_root_path() -> None:
-    rule = Form.model_json_schema()["x-validations"][0]
+def test_local_rule_resource_exports_once_independent_of_parent_path() -> None:
+    rule = Form.model_json_schema()["$defs"]["Section"]["x-validations"][0]
 
-    assert rule["target"] == '$.sections[*].widgets[?(@.kind == "field")].field_id'
-    assert rule["assert"]["enum"]["$resolve"] == "$.sections[*].fields[*]"
-    assert len(Form.model_json_schema()["x-validations"]) == 1
+    assert rule["target"] == '$.widgets[?(@.kind == "field")].field_id'
+    assert rule["assert"]["enum"]["$path"] == "$.fields[*]"
+    assert len(Form.model_json_schema()["$defs"]["Section"]["x-validations"]) == 1
 
 
 def test_local_rule_cannot_reference_parent_path() -> None:
     rule = Section.model_json_schema()["x-validations"][0]
 
     assert rule["target"] == '$.widgets[?(@.kind == "field")].field_id'
-    assert rule["assert"]["enum"]["$resolve"] == "$.fields[*]"
+    assert rule["assert"]["enum"]["$path"] == "$.fields[*]"
 
 
 def test_constant_rules_enforce_their_declared_values() -> None:
-    class ConstantRule(XValidatedModel):
+    class ConstantRule(BaseModel):
         first: str
         second: str
 
         @xvalidation(id="first", description="First constant.")
-        def first_rule(x: XValidationContext) -> AuthoredRule:
-            return x.target(x.path.first).assert_schema({"enum": x.resolve(["same"])})
+        @classmethod
+        def first_rule(cls, x: XValidationContext) -> ValidationRule:
+            return x.target(x.path.first).assert_schema({
+                "allOf": [{"enum": ["same"]}, {"const": x.path.first}]
+            })
 
         @xvalidation(id="second", description="Second constant.")
-        def second_rule(x: XValidationContext) -> AuthoredRule:
-            return x.target(x.path.second).assert_schema({"enum": x.resolve(["same"])})
+        @classmethod
+        def second_rule(cls, x: XValidationContext) -> ValidationRule:
+            return x.target(x.path.second).assert_schema({
+                "allOf": [{"enum": ["same"]}, {"const": x.path.second}]
+            })
 
     schema = ConstantRule.model_json_schema()
     assert xvalidate({"first": "same", "second": "same"}, schema) is None
 
     for field, rule_id in (("first", "first"), ("second", "second")):
         payload = {"first": "same", "second": "same", field: "different"}
-        assert _xvalidation_failure_triples(payload, schema) == [
-            (f"$.{field}", rule_id, "x-validation")
-        ]
+        assert _xvalidation_failures(payload, schema) == [(f"$.{field}", rule_id)]
 
 
 def test_static_rule_external_schema_enforces_bad_payload() -> None:
@@ -84,9 +82,9 @@ def test_static_rule_external_schema_enforces_bad_payload() -> None:
     with pytest.raises(XValidationError) as exc_info:
         xvalidate({"tags": [], "primary_tag": "anything"}, schema)
 
-    assert [
-        (error.path, error.source, error.rule_id) for error in exc_info.value.errors
-    ] == [("$.tags", "base", None)]
+    assert [(error.path, error.rule_id) for error in exc_info.value.errors] == [
+        ("$.tags", None)
+    ]
 
 
 @pytest.mark.parametrize(
@@ -141,6 +139,7 @@ def test_exported_schema_errors_are_not_xvalidation_errors() -> None:
         xvalidate(
             {},
             {
+                "$id": "urn:test:bad-jsonpath",
                 "$schema": XVALIDATIONS_SCHEMA_URI,
                 "type": "object",
                 "x-validations": [
@@ -209,11 +208,9 @@ def test_validation_never_mutates_inputs(
     assert schema == original_schema
 
 
-def _xvalidation_failure_triples(
+def _xvalidation_failures(
     payload: dict[str, object], schema: dict[str, object]
-) -> list[tuple[str, str | None, str]]:
+) -> list[tuple[str, str | None]]:
     with pytest.raises(XValidationError) as exc_info:
         xvalidate(payload, schema)
-    return [
-        (error.path, error.rule_id, error.source) for error in exc_info.value.errors
-    ]
+    return [(error.path, error.rule_id) for error in exc_info.value.errors]

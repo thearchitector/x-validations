@@ -1,6 +1,7 @@
 {
   "schema": {
-    "$schema": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+    "$id": "urn:xvalidations:fixture:jsonpath-nested",
+    "$schema": "https://thearchitector.dev/xvalidations/schema.json",
     "type": "object",
     "properties": {
       "items": {
@@ -23,7 +24,7 @@
         "description": "Each field primary must be in field tags.",
         "target": "$.items[?(@.kind == \"field\")].primary",
         "assert": {
-          "enum": {"$resolve": "$.items[?(@.kind == \"field\")].tags[*]"}
+          "enum": {"$path": "$.items[?(@.kind == \"field\")].tags[*]"}
         }
       }
     ]

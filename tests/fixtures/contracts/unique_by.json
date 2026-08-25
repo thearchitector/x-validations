@@ -1,6 +1,7 @@
 {
   "schema": {
-    "$schema": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+    "$id": "urn:xvalidations:fixture:unique-by",
+    "$schema": "https://thearchitector.dev/xvalidations/schema.json",
     "type": "object",
     "required": ["fields"],
     "properties": {
@@ -16,7 +17,7 @@
     "x-validations": [
       {
         "id": "unique-field-ids",
-        "target": "$.fields[*]",
+        "target": "$.fields",
         "assert": {"x-uniqueBy": "$.field_id"}
       }
     ]

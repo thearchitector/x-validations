@@ -32,7 +32,7 @@ fn validation_errors(payload: &Value, schema: &Value) -> Vec<xvalidations_core::
 fn nested_resource_runs_at_properties_and_array_items_with_absolute_paths() {
     let schema = json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$defs": {"Child": child_resource(&json!({"const": "ok"}))},
+        "$defs": {"Child": child_resource(&json!({"const": {"$path": "$.expected"}}))},
         "type": "object",
         "properties": {
             "first": {"$ref": "#/$defs/Child"},
@@ -42,9 +42,9 @@ fn nested_resource_runs_at_properties_and_array_items_with_absolute_paths() {
     });
     let errors = validation_errors(
         &json!({
-            "first": {"value": "bad"},
-            "second": {"value": "ok"},
-            "items": [{"value": "bad"}]
+            "first": {"value": "bad", "expected": "ok"},
+            "second": {"value": "ok", "expected": "ok"},
+            "items": [{"value": "bad", "expected": "ok"}]
         }),
         &schema,
     );
@@ -65,7 +65,7 @@ fn nested_resource_runs_at_properties_and_array_items_with_absolute_paths() {
 fn refs_and_successful_applicator_branches_emit_resource_occurrences() {
     let schema = json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$defs": {"Child": child_resource(&json!({"const": "ok"}))},
+        "$defs": {"Child": child_resource(&json!({"const": {"$path": "$.expected"}}))},
         "type": "object",
         "properties": {
             "all": {"allOf": [{"$ref": "#/$defs/Child"}]},
@@ -79,10 +79,10 @@ fn refs_and_successful_applicator_branches_emit_resource_occurrences() {
     });
     let errors = validation_errors(
         &json!({
-            "all": {"value": "bad"},
-            "any": {"value": "bad"},
-            "one": {"value": "bad"},
-            "conditional": {"value": "bad"}
+            "all": {"value": "bad", "expected": "ok"},
+            "any": {"value": "bad", "expected": "ok"},
+            "one": {"value": "bad", "expected": "ok"},
+            "conditional": {"value": "bad", "expected": "ok"}
         }),
         &schema,
     );
@@ -102,27 +102,21 @@ fn refs_and_successful_applicator_branches_emit_resource_occurrences() {
 }
 
 #[test]
-fn local_constant_and_schema_pointer_resolution_stay_in_the_resource() {
-    let mut resource = child_resource(&json!({
-        "allOf": [
-            {"enum": {"$resolve": "#/x-constants/xv-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
-            {"$resolve": "#/$defs/StringValue"}
-        ]
-    }));
-    resource["x-constants"] = json!({
-        "xv-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": ["ok"]
-    });
-    resource["$defs"] = json!({"StringValue": {"type": "string"}});
+fn paths_are_evaluated_from_the_local_resource_instance() {
+    let resource = child_resource(&json!({"const": {"$path": "$.expected"}}));
 
-    assert_eq!(xvalidate(&json!({"value": "ok"}), &resource), Ok(()));
-    let errors = validation_errors(&json!({"value": "bad"}), &resource);
-    assert!(errors.iter().all(|error| error.rule_id.is_some()));
+    assert_eq!(
+        xvalidate(&json!({"value": "ok", "expected": "ok"}), &resource),
+        Ok(())
+    );
+    let errors = validation_errors(&json!({"value": "bad", "expected": "ok"}), &resource);
+    assert_eq!(errors[0].path, "$.value");
 }
 
 #[test]
 fn base_schema_failure_short_circuits_payload_dependent_rule_compilation() {
     let resource = child_resource(&json!({
-        "enum": {"$resolve": "$.missing["}
+        "enum": {"$path": "$.missing["}
     }));
     let failure = xvalidate(&json!({}), &resource).expect_err("required should fail first");
     let XValidationFailure::Validation { errors } = failure else {
@@ -136,8 +130,8 @@ fn duplicate_resource_ids_are_rejected_during_preparation() {
     let schema = json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "$defs": {
-            "First": child_resource(&json!({"const": "ok"})),
-            "Second": child_resource(&json!({"const": "ok"}))
+            "First": child_resource(&json!({"const": {"$path": "$.expected"}})),
+            "Second": child_resource(&json!({"const": {"$path": "$.expected"}}))
         }
     });
     assert!(matches!(
@@ -148,7 +142,7 @@ fn duplicate_resource_ids_are_rejected_during_preparation() {
 
 #[test]
 fn embedded_xvalidation_resource_requires_an_id() {
-    let mut child = child_resource(&json!({"const": "ok"}));
+    let mut child = child_resource(&json!({"const": {"$path": "$.expected"}}));
     child
         .as_object_mut()
         .expect("child is an object")
@@ -166,7 +160,7 @@ fn embedded_xvalidation_resource_requires_an_id() {
 }
 
 #[test]
-fn assertions_can_reference_another_prepared_resource() {
+fn assertion_references_are_rejected_by_the_contract() {
     let mut validating = child_resource(&json!({"$ref": "urn:test:constraints#allowed"}));
     validating["$id"] = json!("urn:test:validating");
     let schema = json!({
@@ -182,23 +176,23 @@ fn assertions_can_reference_another_prepared_resource() {
         "$ref": "#/$defs/Validating"
     });
 
-    assert_eq!(xvalidate(&json!({"value": "ok"}), &schema), Ok(()));
-    let errors = validation_errors(&json!({"value": "bad"}), &schema);
-    assert_eq!(errors[0].path, "$.value");
-    assert_eq!(errors[0].rule_id.as_deref(), Some("local-value"));
+    assert!(matches!(
+        xvalidate(&json!({"value": "ok"}), &schema),
+        Err(XValidationFailure::InvalidSchema { .. })
+    ));
 }
 
 #[test]
 fn repeated_references_preserve_repeated_resource_occurrences() {
     let schema = json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$defs": {"Child": child_resource(&json!({"const": "ok"}))},
+        "$defs": {"Child": child_resource(&json!({"const": {"$path": "$.expected"}}))},
         "allOf": [
             {"$ref": "#/$defs/Child"},
             {"$ref": "#/$defs/Child"}
         ]
     });
-    let errors = validation_errors(&json!({"value": "bad"}), &schema);
+    let errors = validation_errors(&json!({"value": "bad", "expected": "ok"}), &schema);
 
     assert_eq!(errors.len(), 2);
     assert!(errors.iter().all(|error| {

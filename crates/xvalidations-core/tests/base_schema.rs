@@ -19,7 +19,7 @@ fn article_schema() -> Value {
                 "id": "primary-tag-exists",
                 "description": "Primary tag must be present in tags.",
                 "target": "$.primary_tag",
-                "assert": {"enum": {"$resolve": "$.tags[*]"}}
+                "assert": {"enum": {"$path": "$.tags[*]"}}
             }
         ]
     })
@@ -57,13 +57,17 @@ fn root_xvalidation_schema_does_not_require_an_id() {
         "x-validations": [{
             "id": "value-is-ok",
             "target": "$.value",
-            "assert": {"const": "ok"}
+            "assert": {"const": {"$path": "$.expected"}}
         }]
     });
 
-    assert_eq!(xvalidate(&json!({"value": "ok"}), &schema), Ok(()));
+    assert_eq!(
+        xvalidate(&json!({"value": "ok", "expected": "ok"}), &schema),
+        Ok(())
+    );
     let XValidationFailure::Validation { errors } =
-        xvalidate(&json!({"value": "bad"}), &schema).expect_err("rule should fail")
+        xvalidate(&json!({"value": "bad", "expected": "ok"}), &schema)
+            .expect_err("rule should fail")
     else {
         panic!("expected validation failure")
     };
@@ -185,7 +189,7 @@ fn schema_preflight_allows_optional_description_and_unique_by_primitive() {
         "x-validations": [
             {
                 "id": "unique-field-ids",
-                "target": "$.fields[*]",
+                "target": "$.fields",
                 "assert": {"x-uniqueBy": "$.field_id"}
             }
         ]
@@ -211,9 +215,9 @@ fn schema_preflight_rejects_unknown_top_level_x_assertion_primitive() {
 }
 
 #[test]
-fn schema_preflight_allows_resolve_hole_where_json_schema_expects_array() {
+fn schema_preflight_allows_path_hole_where_json_schema_expects_array() {
     let schema = json!({
-        "$id": "urn:test:resolve-hole",
+        "$id": "urn:test:path-hole",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "type": "object",
         "required": ["allowed_tags", "primary_tag"],
@@ -225,7 +229,7 @@ fn schema_preflight_allows_resolve_hole_where_json_schema_expects_array() {
             {
                 "id": "primary-tag-exists",
                 "target": "$.primary_tag",
-                "assert": {"enum": {"$resolve": "$.allowed_tags[*]"}}
+                "assert": {"enum": {"$path": "$.allowed_tags[*]"}}
             }
         ]
     });
@@ -240,9 +244,9 @@ fn schema_preflight_allows_resolve_hole_where_json_schema_expects_array() {
 }
 
 #[test]
-fn phase1_keeps_resolved_defs_that_base_schema_still_references() {
+fn schema_preflight_rejects_legacy_constants() {
     let schema = json!({
-        "$id": "urn:test:resolved-defs",
+        "$id": "urn:test:legacy-constants",
         "$schema": XVALIDATIONS_SCHEMA_URI,
         "$defs": {
             "BaseTag": {"type": "string"}
@@ -255,16 +259,10 @@ fn phase1_keeps_resolved_defs_that_base_schema_still_references() {
         "properties": {
             "tag": {"$ref": "#/$defs/BaseTag"}
         },
-        "x-validations": [
-            {
-                "id": "tag-in-resource-def",
-                "target": "$.tag",
-                "assert": {"enum": {"$resolve": "#/x-constants/xv-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}
-            }
-        ]
+        "x-validations": []
     });
 
-    assert_eq!(xvalidate(&json!({"tag": "python"}), &schema), Ok(()));
+    assert_invalid_schema(&schema);
 }
 
 #[test]

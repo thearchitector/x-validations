@@ -5,21 +5,19 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
-from xvalidations import XValidatedModel, XValidationContext, xvalidation
-from xvalidations.authoring import AuthoredRule
+from xvalidations import ValidationRule, XValidationContext, xvalidation
 
 
-class Article(XValidatedModel):
+class Article(BaseModel):
     tags: list[str]
     primary_tag: str
 
     @xvalidation(
         id="primary-tag-exists", description="Primary tag must be present in tags."
     )
-    def primary_tag_exists(x: XValidationContext) -> AuthoredRule:
-        return x.target(x.path.primary_tag).assert_schema({
-            "enum": x.resolve(x.path.tags.each())
-        })
+    @classmethod
+    def primary_tag_exists(cls, x: XValidationContext) -> ValidationRule:
+        return x.target(x.path.primary_tag).assert_schema({"enum": x.path.tags.each()})
 
 
 class FieldWidget(BaseModel):
@@ -32,7 +30,7 @@ class TextWidget(BaseModel):
     text: str
 
 
-class Section(XValidatedModel):
+class Section(BaseModel):
     fields: list[str]
     widgets: list[FieldWidget | TextWidget]
 
@@ -40,17 +38,18 @@ class Section(XValidatedModel):
         id="section-widget-field-exists",
         description="Field widgets must reference existing fields.",
     )
-    def widget_field_exists(x: XValidationContext) -> AuthoredRule:
+    @classmethod
+    def widget_field_exists(cls, x: XValidationContext) -> ValidationRule:
         return x.target(
             x.path.widgets.where(x.this.kind == "field").field_id
-        ).assert_schema({"enum": x.resolve(x.path.fields.each())})
+        ).assert_schema({"enum": x.path.fields.each()})
 
 
-class Form(XValidatedModel):
+class Form(BaseModel):
     sections: list[Section]
 
 
-class StaticArticle(XValidatedModel):
+class StaticArticle(BaseModel):
     tags: list[str] = Field(min_length=1)
     primary_tag: str
 

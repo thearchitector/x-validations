@@ -7,13 +7,10 @@ from typing import Any, cast
 from pydantic import BaseModel
 
 from tests.conftest import Article
-from xvalidations import XValidatedModel, XValidationContext, xvalidation
-from xvalidations.authoring import AuthoredRule
+from xvalidations import ValidationRule, XValidationContext, xvalidation
 
 CONTRACTS_DIR = Path("tests/fixtures/contracts")
-XVALIDATIONS_SCHEMA_URI = (
-    "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json"
-)
+XVALIDATIONS_SCHEMA_URI = "https://thearchitector.dev/xvalidations/schema.json"
 
 
 def _load_contract(name: str) -> dict[str, Any]:
@@ -33,14 +30,13 @@ def test_authoring_emits_shared_unique_by_contract() -> None:
     class FieldRecord(BaseModel):
         field_id: str
 
-    class UniqueFields(XValidatedModel):
+    class UniqueFields(BaseModel):
         fields: list[FieldRecord]
 
         @xvalidation(id="unique-field-ids")
-        def unique_field_ids(x: XValidationContext) -> AuthoredRule:
-            return x.target(x.path.fields.each()).assert_schema({
-                "x-uniqueBy": "$.field_id"
-            })
+        @classmethod
+        def unique_field_ids(cls, x: XValidationContext) -> ValidationRule:
+            return x.target(x.path.fields).assert_schema({"x-uniqueBy": "$.field_id"})
 
     contract = _load_contract("unique_by.json")
 

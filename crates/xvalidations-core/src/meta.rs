@@ -31,7 +31,7 @@ mod tests {
             "type": "object",
             "x-validations": []
         })));
-        assert!(XVALIDATIONS_META_VALIDATOR.is_valid(&json!({
+        assert!(!XVALIDATIONS_META_VALIDATOR.is_valid(&json!({
             "$schema": XVALIDATIONS_SCHEMA_URI,
             "x-validations": [],
             "x-constants": {}

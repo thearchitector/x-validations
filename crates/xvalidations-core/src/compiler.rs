@@ -1,9 +1,9 @@
 use serde_json::Value;
 
-use crate::artifact::{normalize_assertion_uris, PreparedResource, PreparedSchema};
+use crate::artifact::{PreparedResource, PreparedSchema};
+use crate::interpolate::interpolate_paths;
 use crate::jsonpath::{evaluate_jsonpath, JsonPathMatch};
 use crate::pointer::{location_from_pointer, location_to_jsonpath, LocationSegment};
-use crate::resolve::resolve_placeholders;
 use crate::types::{ValidationError, XValidationFailure};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,18 +71,37 @@ fn validate_resource_occurrence(
             continue;
         }
 
-        let mut assertion = resolve_placeholders(&rule.assertion, local_payload, &resource.source)?;
-        normalize_assertion_uris(&mut assertion, &resource.id, &prepared.registry)?;
-        let validator = jsonschema::options()
+        let assertion = match interpolate_paths(&rule.assertion, local_payload) {
+            Ok(assertion) => assertion,
+            Err(XValidationFailure::InvalidRule { message }) => {
+                push_assertion_construction_errors(
+                    &target_matches,
+                    occurrence_location,
+                    &rule.id,
+                    &message,
+                    errors,
+                );
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+        let validator = match jsonschema::options()
             .with_draft(jsonschema::Draft::Draft202012)
             .with_registry(&prepared.registry)
             .build(&assertion)
-            .map_err(|error| XValidationFailure::InvalidSchema {
-                message: format!(
-                    "assertion for rule {:?} is not valid Draft 2020-12: {error}",
-                    rule.id
-                ),
-            })?;
+        {
+            Ok(validator) => validator,
+            Err(error) => {
+                push_assertion_construction_errors(
+                    &target_matches,
+                    occurrence_location,
+                    &rule.id,
+                    &format!("interpolated assertion is not valid Draft 2020-12: {error}"),
+                    errors,
+                );
+                continue;
+            }
+        };
 
         for target_match in &target_matches {
             for error in validator.iter_errors(&target_match.value) {
@@ -101,6 +120,24 @@ fn validate_resource_occurrence(
         }
     }
     Ok(())
+}
+
+fn push_assertion_construction_errors(
+    target_matches: &[JsonPathMatch],
+    occurrence_location: &[LocationSegment],
+    rule_id: &str,
+    message: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    for target_match in target_matches {
+        let mut absolute_location = occurrence_location.to_vec();
+        absolute_location.extend(target_match.location.iter().cloned());
+        errors.push(ValidationError {
+            path: location_to_jsonpath(&absolute_location),
+            message: message.to_string(),
+            rule_id: Some(rule_id.to_string()),
+        });
+    }
 }
 
 fn unique_by_projection_path(assertion: &Value) -> Result<Option<&str>, XValidationFailure> {
@@ -126,42 +163,54 @@ fn validate_unique_by(
     rule_id: &str,
     errors: &mut Vec<ValidationError>,
 ) -> Result<(), XValidationFailure> {
-    let mut groups: Vec<(Value, Vec<&JsonPathMatch>)> = Vec::new();
     for target_match in target_matches {
-        let projection_matches = evaluate_jsonpath(projection_path, &target_match.value)?;
-        if projection_matches.len() != 1 {
+        let Some(items) = target_match.value.as_array() else {
             return Err(XValidationFailure::InvalidRule {
                 message: format!(
-                    "x-uniqueBy projection must return exactly one value for {}",
+                    "x-uniqueBy target must be an array at {}",
                     target_match.normalized_path
                 ),
             });
+        };
+        let mut groups: Vec<(Value, Vec<usize>)> = Vec::new();
+        for (index, item) in items.iter().enumerate() {
+            let projection_matches = evaluate_jsonpath(projection_path, item)?;
+            if projection_matches.len() != 1 {
+                return Err(XValidationFailure::InvalidRule {
+                    message: format!(
+                        "x-uniqueBy projection must return exactly one value for {}[{index}]",
+                        target_match.normalized_path
+                    ),
+                });
+            }
+            let projected = projection_matches[0].value.clone();
+            if let Some((_, matches)) = groups
+                .iter_mut()
+                .find(|(group_value, _)| *group_value == projected)
+            {
+                matches.push(index);
+            } else {
+                groups.push((projected, vec![index]));
+            }
         }
-        let projected = projection_matches[0].value.clone();
-        if let Some((_, matches)) = groups
-            .iter_mut()
-            .find(|(group_value, _)| *group_value == projected)
-        {
-            matches.push(target_match);
-        } else {
-            groups.push((projected, vec![target_match]));
-        }
-    }
 
-    for (value, matches) in groups {
-        if matches.len() < 2 {
-            continue;
-        }
-        let message =
-            format!("x-uniqueBy projection {projection_path:?} produced duplicate value {value}");
-        for target_match in matches {
-            let mut absolute_location = occurrence_location.to_vec();
-            absolute_location.extend(target_match.location.iter().cloned());
-            errors.push(ValidationError {
-                path: location_to_jsonpath(&absolute_location),
-                message: message.clone(),
-                rule_id: Some(rule_id.to_string()),
-            });
+        for (value, matches) in groups {
+            if matches.len() < 2 {
+                continue;
+            }
+            let message = format!(
+                "x-uniqueBy projection {projection_path:?} produced duplicate value {value}"
+            );
+            for index in matches {
+                let mut absolute_location = occurrence_location.to_vec();
+                absolute_location.extend(target_match.location.iter().cloned());
+                absolute_location.push(LocationSegment::Index(index));
+                errors.push(ValidationError {
+                    path: location_to_jsonpath(&absolute_location),
+                    message: message.clone(),
+                    rule_id: Some(rule_id.to_string()),
+                });
+            }
         }
     }
     Ok(())

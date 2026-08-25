@@ -14,7 +14,7 @@ class ValidationFailure(TypedDict):
     errors: list[ValidationErrorData]
 
 class ExportedSchemaFailure(TypedDict):
-    kind: Literal["invalid_schema", "invalid_rule", "json_path", "resolve"]
+    kind: Literal["invalid_schema", "invalid_rule", "json_path"]
     message: str
 
 class ConversionFailure(TypedDict):
@@ -28,12 +28,10 @@ class ValidationError:
 
 class ExportedSchemaError(ValueError):
     failure: ExportedSchemaFailure
-    kind: Literal["invalid_schema", "invalid_rule", "json_path", "resolve"]
+    kind: Literal["invalid_schema", "invalid_rule", "json_path"]
 
 class InvalidRuleError(ExportedSchemaError): ...
 class JsonPathError(ExportedSchemaError): ...
-class ResolveError(ExportedSchemaError): ...
-
 class XValidationTypeError(TypeError):
     failure: ConversionFailure
     kind: Literal["invalid_payload", "invalid_schema_input"]

@@ -1,12 +1,6 @@
-"""Authoring and export exceptions raised by x-validations."""
+class InvalidSchemaError(ValueError):
+    """Raised when authoring would produce an invalid JSON Schema resource."""
 
 
-class XValidationAuthoringError(ValueError):
-    """Raised when an authored x-validation declaration is invalid."""
-
-
-class InvalidRuleError(XValidationAuthoringError):
-    """Raised when an x-validation rule declaration is invalid."""
-
-
-__all__ = ["InvalidRuleError", "XValidationAuthoringError"]
+class InvalidRuleError(InvalidSchemaError):
+    """Raised when an authored validation rule is invalid."""

@@ -1,6 +1,7 @@
 {
   "schema": {
-    "$schema": "https://thearchitector.dev/xvalidations/meta/x-validations.schema.json",
+    "$id": "urn:xvalidations:fixture:article",
+    "$schema": "https://thearchitector.dev/xvalidations/schema.json",
     "type": "object",
     "required": ["tags", "primary_tag"],
     "properties": {
@@ -12,7 +13,7 @@
         "id": "primary-tag-exists",
         "description": "Primary tag must be present in tags.",
         "target": "$.primary_tag",
-        "assert": {"enum": {"$resolve": "$.tags[*]"}}
+        "assert": {"enum": {"$path": "$.tags[*]"}}
       }
     ]
   },

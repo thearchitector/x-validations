@@ -4,14 +4,12 @@ use pyo3::types::PyList;
 use pythonize::{depythonize, pythonize};
 use serde_json::Value;
 use xvalidations_core::{
-    xvalidate as core_xvalidate, ValidationError as CoreValidationError, XValidationBindingFailure,
-    XValidationFailure,
+    xvalidate as core_xvalidate, ValidationError as CoreValidationError, XValidationFailure,
 };
 
 pyo3::create_exception!(xvalidate, ExportedSchemaError, PyValueError);
 pyo3::create_exception!(xvalidate, InvalidRuleError, ExportedSchemaError);
 pyo3::create_exception!(xvalidate, JsonPathError, ExportedSchemaError);
-pyo3::create_exception!(xvalidate, ResolveError, ExportedSchemaError);
 pyo3::create_exception!(xvalidate, XValidationTypeError, PyTypeError);
 pyo3::create_exception!(xvalidate, XValidationError, PyValueError);
 
@@ -89,20 +87,14 @@ fn add_core_failure_attrs(
 }
 
 fn conversion_failure_to_py_err(py: Python<'_>, kind: &str, message: &str) -> PyErr {
-    conversion_failure_to_py_exception(py, &XValidationBindingFailure::new(kind, message))
-        .unwrap_or_else(|error| error)
-}
-
-fn conversion_failure_to_py_exception(
-    py: Python<'_>,
-    failure: &XValidationBindingFailure,
-) -> PyResult<PyErr> {
-    let exception = py
-        .get_type::<XValidationTypeError>()
-        .call1((failure.message.as_str(),))?;
-    exception.setattr("failure", binding_failure_to_py_object(py, failure)?)?;
-    exception.setattr("kind", failure.kind.as_str())?;
-    Ok(PyErr::from_value(exception))
+    let result = (|| -> PyResult<PyErr> {
+        let exception = py.get_type::<XValidationTypeError>().call1((message,))?;
+        let failure = serde_json::json!({"kind": kind, "message": message});
+        exception.setattr("failure", pythonize(py, &failure)?)?;
+        exception.setattr("kind", kind)?;
+        Ok(PyErr::from_value(exception))
+    })();
+    result.unwrap_or_else(|error| error)
 }
 
 fn failure_to_py_object<'py>(
@@ -115,16 +107,6 @@ fn failure_to_py_object<'py>(
     Ok(pythonize(py, &failure)?)
 }
 
-fn binding_failure_to_py_object<'py>(
-    py: Python<'py>,
-    failure: &XValidationBindingFailure,
-) -> PyResult<Bound<'py, PyAny>> {
-    let failure = failure.to_json_value().map_err(|error| {
-        PyTypeError::new_err(format!("failed to serialize binding failure: {error}"))
-    })?;
-    Ok(pythonize(py, &failure)?)
-}
-
 #[pymodule]
 fn xvalidate(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate, m)?)?;
@@ -132,7 +114,6 @@ fn xvalidate(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ExportedSchemaError", py.get_type::<ExportedSchemaError>())?;
     m.add("InvalidRuleError", py.get_type::<InvalidRuleError>())?;
     m.add("JsonPathError", py.get_type::<JsonPathError>())?;
-    m.add("ResolveError", py.get_type::<ResolveError>())?;
     m.add(
         "XValidationTypeError",
         py.get_type::<XValidationTypeError>(),
@@ -144,7 +125,6 @@ fn xvalidate(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
             "ExportedSchemaError",
             "InvalidRuleError",
             "JsonPathError",
-            "ResolveError",
             "ValidationError",
             "XValidationTypeError",
             "XValidationError",

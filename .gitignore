@@ -10,5 +10,6 @@ target/
 crates/xvalidate-js/pkg/
 
 test.py
-.skylos*
 .coverage*
+
+plans

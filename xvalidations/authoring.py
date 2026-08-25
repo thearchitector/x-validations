@@ -1,186 +1,167 @@
-"""Authoring DSL for x-validation rules."""
-
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from functools import wraps
-from typing import Protocol, cast
+from typing import Any, overload
 
-from pydantic import validate_call
-
-from xvalidations._path import (
+from .models import RuleAssertion, ValidationRule
+from .path import (
     Comparison,
     Expr,
     FilterSelector,
     IndexSelector,
     KeySelector,
     Path,
-    Segment,
-    Selector,
     SliceSelector,
     WildcardSelector,
-    filter_selector,
-    index_selector,
-    key,
-    path_to_jsonpath,
-    predicate_to_jsonpath,
-    slice_selector,
-    wildcard,
 )
-from xvalidations._validation import STRICT_CALL_CONFIG
-from xvalidations.models import JsonValue
+from .types import checkcall
 
 
-@dataclass(frozen=True)
-class ResolveMarker:
-    """Placeholder for values resolved at validation time."""
-
-    value: Path | JsonValue
-
-
-type AuthoredValue = (
-    JsonValue | ResolveMarker | list[AuthoredValue] | dict[str, AuthoredValue]
-)
-
-
-@dataclass(frozen=True)
-class AuthoredRule:
-    """Rule data returned by an authoring factory."""
-
-    target: Path
-    assert_: AuthoredValue
-
-
-@dataclass(frozen=True)
-class XValidationDeclaration:
-    """Metadata attached by the xvalidation decorator."""
-
-    id: str
-    description: str | None
-    factory: Callable[[XValidationContext], AuthoredRule]
-
-
-class _DeclaredFactory(Protocol):
-    __xvalidation_declaration__: XValidationDeclaration
-
-    def __call__(self, context: XValidationContext) -> AuthoredRule: ...
-
-
-@dataclass(frozen=True)
-class RuleBuilder:
-    """Build authored rule data for a target path."""
-
+@dataclass(frozen=True, slots=True)
+class _RuleBuilder:
     target_path: Path
 
-    @validate_call(config=STRICT_CALL_CONFIG)
-    def assert_schema(self, schema_json: AuthoredValue) -> AuthoredRule:
-        """Attach an assertion schema to this rule target."""
-        return AuthoredRule(target=self.target_path, assert_=schema_json)
+    def assert_schema(self, schema_json: RuleAssertion) -> ValidationRule:
+        """Attach an object-form JSON Schema assertion to this target."""
+        return ValidationRule(target=self.target_path, assertion=schema_json)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class XValidationContext:
-    """Context passed to x-validation authoring factories."""
+    """Context passed to a decorated rule classmethod."""
 
     path: Path = field(default_factory=Path)
     this: Expr = field(default_factory=Expr)
 
     @staticmethod
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def key(name: str) -> KeySelector:
-        """Create a key selector."""
         return KeySelector(name)
 
     @staticmethod
     def wildcard() -> WildcardSelector:
-        """Create a wildcard selector."""
         return WildcardSelector()
 
     @staticmethod
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def index(index: int) -> IndexSelector:
-        """Create an index selector."""
         return IndexSelector(index)
 
     @staticmethod
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def slice(
         start: int | None = None, stop: int | None = None, step: int | None = None
     ) -> SliceSelector:
-        """Create a slice selector."""
         return SliceSelector(start, stop, step)
 
     @staticmethod
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def filter(predicate: Comparison) -> FilterSelector:
-        """Create a filter selector."""
         return FilterSelector(predicate)
 
-    @validate_call(config=STRICT_CALL_CONFIG)
-    def target(self, path_object: Path) -> RuleBuilder:
-        """Start building a rule for a target path."""
-        return RuleBuilder(path_object)
+    @checkcall
+    def target(self, path_object: Path) -> _RuleBuilder:
+        return _RuleBuilder(path_object)
 
-    @validate_call(config=STRICT_CALL_CONFIG)
-    def resolve(self, path_object_or_json_constant: Path | JsonValue) -> ResolveMarker:
-        """Create a resolve marker for a path or JSON constant."""
-        if isinstance(
-            path_object_or_json_constant, str
-        ) and path_object_or_json_constant.startswith("$"):
-            msg = "resolve() requires a Path for JSONPath values"
+
+@dataclass(frozen=True, slots=True)
+class _Declaration:
+    name: str
+    id: str
+    description: str | None
+    override: bool
+    descriptor: _XValidationDescriptor
+
+
+class _XValidationDescriptor(classmethod):  # type: ignore[type-arg]
+    """Descriptor installed by :func:`xvalidation`."""
+
+    def __init__(
+        self,
+        method: classmethod[Any, Any, ValidationRule],
+        *,
+        id: str | None,
+        description: str | None,
+        override: bool,
+    ) -> None:
+        if not isinstance(method, classmethod):
+            msg = "@xvalidation must decorate a classmethod"
             raise TypeError(msg)
-        return ResolveMarker(path_object_or_json_constant)
+        super().__init__(method.__func__)
+        self._explicit_id = id
+        self._description = description
+        self._override = override
+        self._name: str | None = None
 
+    def __set_name__(self, owner: type[object], name: str) -> None:
+        self._name = name
+        from xvalidations.pydantic import _install_model_hooks
 
-@validate_call(config=STRICT_CALL_CONFIG)
-def xvalidation(
-    id: str, description: str | None = None
-) -> Callable[
-    [Callable[[XValidationContext], AuthoredRule]],
-    Callable[[XValidationContext], AuthoredRule],
-]:
-    """Declare an x-validation rule and enforce its factory contract."""
+        _install_model_hooks(owner)
 
-    def decorator(
-        factory: Callable[[XValidationContext], AuthoredRule],
-    ) -> Callable[[XValidationContext], AuthoredRule]:
-        @wraps(factory)
-        @validate_call(config=STRICT_CALL_CONFIG, validate_return=True)
-        def validated_factory(context: XValidationContext) -> AuthoredRule:
-            return factory(context)
-
-        declaration = XValidationDeclaration(
-            id=id, description=description, factory=validated_factory
+    @property
+    def declaration(self) -> _Declaration:
+        if self._name is None:
+            msg = "x-validation descriptor has not been assigned to a model"
+            raise TypeError(msg)
+        rule_id = self._explicit_id
+        if rule_id is None:
+            rule_id = "-".join(
+                part for part in self._name.strip("_").split("_") if part
+            )
+            rule_id = rule_id.lower()
+        return _Declaration(
+            name=self._name,
+            id=rule_id,
+            description=self._description,
+            override=self._override
+            or bool(getattr(self.__func__, "__override__", False)),
+            descriptor=self,
         )
-        declared_factory = cast(_DeclaredFactory, validated_factory)
-        declared_factory.__xvalidation_declaration__ = declaration
-        return declared_factory
 
-    return decorator
+    def invoke(self, model_cls: type[object]) -> object:
+        factory = super().__get__(None, model_cls)
+        return factory(XValidationContext())
 
 
-__all__ = [
-    "AuthoredRule",
-    "AuthoredValue",
-    "Comparison",
-    "Expr",
-    "FilterSelector",
-    "IndexSelector",
-    "KeySelector",
-    "Path",
-    "ResolveMarker",
-    "RuleBuilder",
-    "Segment",
-    "Selector",
-    "SliceSelector",
-    "WildcardSelector",
-    "XValidationContext",
-    "XValidationDeclaration",
-    "filter_selector",
-    "index_selector",
-    "key",
-    "path_to_jsonpath",
-    "predicate_to_jsonpath",
-    "slice_selector",
-    "wildcard",
-    "xvalidation",
-]
+@overload
+def xvalidation(
+    method: classmethod[Any, Any, ValidationRule], /
+) -> _XValidationDescriptor: ...
+
+
+@overload
+def xvalidation(
+    *, id: str | None = None, description: str | None = None, override: bool = False
+) -> Callable[[classmethod[Any, Any, ValidationRule]], _XValidationDescriptor]: ...
+
+
+def xvalidation(
+    method: classmethod[Any, Any, ValidationRule] | None = None,
+    /,
+    *,
+    id: str | None = None,
+    description: str | None = None,
+    override: bool = False,
+) -> (
+    _XValidationDescriptor
+    | Callable[[classmethod[Any, Any, ValidationRule]], _XValidationDescriptor]
+):
+    """Declare a model-scoped Validation Rule on a classmethod."""
+
+    if id is not None and not isinstance(id, str):
+        raise TypeError("xvalidation id must be a string or None")
+    if description is not None and not isinstance(description, str):
+        raise TypeError("xvalidation description must be a string or None")
+    if not isinstance(override, bool):
+        raise TypeError("xvalidation override must be a bool")
+
+    def decorate(
+        decorated: classmethod[Any, Any, ValidationRule],
+    ) -> _XValidationDescriptor:
+        return _XValidationDescriptor(
+            decorated, id=id, description=description, override=override
+        )
+
+    if method is not None:
+        return decorate(method)
+    return decorate

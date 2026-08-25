@@ -1,38 +1,33 @@
-"""Typed RFC 9535 JSONPath authoring primitives."""
-
 import json
 import re
 from dataclasses import dataclass
 from typing import Literal
 
-from pydantic import validate_call
-
-from xvalidations._validation import STRICT_CALL_CONFIG
-from xvalidations.models import JsonScalar
+from .types import JsonScalar, checkcall
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class KeySelector:
     """Select an object member by name."""
 
     name: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class WildcardSelector:
     """Select all child values."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class IndexSelector:
     """Select an array item by index."""
 
     index: int
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SliceSelector:
     """Select an array slice."""
 
@@ -41,7 +36,7 @@ class SliceSelector:
     step: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Comparison:
     """Predicate comparison between a relative path and JSON scalar."""
 
@@ -50,7 +45,7 @@ class Comparison:
     value: JsonScalar
 
 
-@dataclass(frozen=True, eq=False)
+@dataclass(frozen=True, slots=True, eq=False)
 class Expr:
     """Relative predicate expression rooted at the current filter item."""
 
@@ -61,15 +56,15 @@ class Expr:
             raise AttributeError(name)
         return Expr((*self.segments, KeySelector(name)))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def __getitem__(self, name: str) -> Expr:
         return Expr((*self.segments, KeySelector(name)))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def __eq__(self, other: JsonScalar) -> Comparison:  # type: ignore[override]
         return Comparison(self, "==", other)
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def __ne__(self, other: JsonScalar) -> Comparison:  # type: ignore[override]
         return Comparison(self, "!=", other)
 
@@ -77,7 +72,7 @@ class Expr:
         return hash(self.segments)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FilterSelector:
     """Select array items matching a predicate."""
 
@@ -89,7 +84,7 @@ type Selector = (
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Segment:
     """A child or recursive JSONPath segment."""
 
@@ -97,18 +92,18 @@ class Segment:
     recursive: bool = False
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Path:
     """Immutable JSONPath AST rooted at the current model."""
 
     segments: tuple[Segment, ...] = ()
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def select(self, selector: Selector, *selectors: Selector) -> Path:
         """Append a child segment."""
         return Path((*self.segments, Segment((selector, *selectors))))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def desc(
         self, selector_or_name: Selector | str, *selectors_or_names: Selector | str
     ) -> Path:
@@ -123,19 +118,19 @@ class Path:
         """Append a wildcard child selector."""
         return Path((*self.segments, Segment((WildcardSelector(),))))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def at(self, index: int) -> Path:
         """Append an array index selector."""
         return Path((*self.segments, Segment((IndexSelector(index),))))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def slice(
         self, start: int | None = None, stop: int | None = None, step: int | None = None
     ) -> Path:
         """Append an array slice selector."""
         return Path((*self.segments, Segment((SliceSelector(start, stop, step),))))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def where(self, predicate: Comparison) -> Path:
         """Append a filter selector."""
         return Path((*self.segments, Segment((FilterSelector(predicate),))))
@@ -149,40 +144,9 @@ class Path:
             raise AttributeError(name)
         return Path((*self.segments, Segment((KeySelector(name),))))
 
-    @validate_call(config=STRICT_CALL_CONFIG)
+    @checkcall
     def __getitem__(self, name: str) -> Path:
         return Path((*self.segments, Segment((KeySelector(name),))))
-
-
-@validate_call(config=STRICT_CALL_CONFIG)
-def key(name: str) -> KeySelector:
-    """Create an object key selector."""
-    return KeySelector(name)
-
-
-def wildcard() -> WildcardSelector:
-    """Create a wildcard selector."""
-    return WildcardSelector()
-
-
-@validate_call(config=STRICT_CALL_CONFIG)
-def index_selector(index: int) -> IndexSelector:
-    """Create an array index selector."""
-    return IndexSelector(index)
-
-
-@validate_call(config=STRICT_CALL_CONFIG)
-def slice_selector(
-    start: int | None = None, stop: int | None = None, step: int | None = None
-) -> SliceSelector:
-    """Create an array slice selector."""
-    return SliceSelector(start, stop, step)
-
-
-@validate_call(config=STRICT_CALL_CONFIG)
-def filter_selector(predicate: Comparison) -> FilterSelector:
-    """Create a filter selector."""
-    return FilterSelector(predicate)
 
 
 def path_to_jsonpath(path: Path) -> str:

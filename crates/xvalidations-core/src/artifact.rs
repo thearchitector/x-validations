@@ -78,22 +78,6 @@ impl ResourceId {
         Ok(Self((*resolved).clone()))
     }
 
-    fn resolve_reference(
-        &self,
-        registry: &Registry<'_>,
-        reference: &str,
-    ) -> Result<String, XValidationFailure> {
-        registry
-            .resolve_uri(&self.0.borrow(), reference)
-            .map(|uri| uri.as_str().to_string())
-            .map_err(|error| XValidationFailure::InvalidSchema {
-                message: format!(
-                    "could not resolve reference {reference:?} against {:?}: {error}",
-                    self.as_str()
-                ),
-            })
-    }
-
     pub(crate) fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -102,7 +86,6 @@ impl ResourceId {
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedResource {
     pub(crate) id: ResourceId,
-    pub(crate) source: Value,
     pub(crate) rules: Vec<ValidationRule>,
 }
 
@@ -287,6 +270,7 @@ fn walk_schema(
         }
         validate_resource(original)?;
         let rules = parse_rules(original)?;
+        validate_rule_assertions(&rules)?;
         validate_rule_ids(&rules)?;
         normalized_object.insert(
             "$schema".to_string(),
@@ -294,7 +278,6 @@ fn walk_schema(
         );
         resources.push(PreparedResource {
             id: effective_id.clone(),
-            source: original.clone(),
             rules,
         });
     }
@@ -366,59 +349,6 @@ fn walk_schema(
     Ok(())
 }
 
-pub(crate) fn normalize_assertion_uris(
-    assertion: &mut Value,
-    containing_resource: &ResourceId,
-    registry: &Registry<'_>,
-) -> Result<(), XValidationFailure> {
-    normalize_schema_node(assertion, containing_resource, registry)
-}
-
-fn normalize_schema_node(
-    node: &mut Value,
-    parent_id: &ResourceId,
-    registry: &Registry<'_>,
-) -> Result<(), XValidationFailure> {
-    let Value::Object(object) = node else {
-        return Ok(());
-    };
-    let effective_id = match object.get("$id").and_then(Value::as_str) {
-        Some(id) => parent_id.resolve_id(registry, id)?,
-        None => parent_id.clone(),
-    };
-    if object.get("$id").is_some_and(Value::is_string) {
-        object.insert(
-            "$id".to_string(),
-            Value::String(effective_id.as_str().to_string()),
-        );
-    }
-    for keyword in ["$ref", "$dynamicRef"] {
-        if let Some(Value::String(reference)) = object.get_mut(keyword) {
-            *reference = effective_id.resolve_reference(registry, reference)?;
-        }
-    }
-    for keyword in SINGLE_SCHEMA_KEYWORDS {
-        if let Some(child) = object.get_mut(*keyword) {
-            normalize_schema_node(child, &effective_id, registry)?;
-        }
-    }
-    for keyword in ARRAY_SCHEMA_KEYWORDS {
-        if let Some(Value::Array(children)) = object.get_mut(*keyword) {
-            for child in children {
-                normalize_schema_node(child, &effective_id, registry)?;
-            }
-        }
-    }
-    for keyword in OBJECT_SCHEMA_KEYWORDS {
-        if let Some(Value::Object(children)) = object.get_mut(*keyword) {
-            for child in children.values_mut() {
-                normalize_schema_node(child, &effective_id, registry)?;
-            }
-        }
-    }
-    Ok(())
-}
-
 fn validate_resource(resource: &Value) -> Result<(), XValidationFailure> {
     XVALIDATIONS_META_VALIDATOR
         .validate(resource)
@@ -458,6 +388,86 @@ fn validate_rule_ids(rules: &[ValidationRule]) -> Result<(), XValidationFailure>
     Ok(())
 }
 
+fn validate_rule_assertions(rules: &[ValidationRule]) -> Result<(), XValidationFailure> {
+    for rule in rules {
+        if contains_exact_marker(&rule.assertion, "$resolve") {
+            return Err(XValidationFailure::InvalidSchema {
+                message: format!(
+                    "validation rule {:?} uses the removed singleton $resolve marker syntax",
+                    rule.id
+                ),
+            });
+        }
+        if contains_nested_unique_by(&rule.assertion) {
+            return Err(XValidationFailure::InvalidSchema {
+                message: format!(
+                    "validation rule {:?} uses x-uniqueBy outside a singleton root assertion",
+                    rule.id
+                ),
+            });
+        }
+        let is_unique_by = rule
+            .assertion
+            .as_object()
+            .is_some_and(|object| object.len() == 1 && object.contains_key("x-uniqueBy"));
+        if !is_unique_by && !contains_exact_marker(&rule.assertion, "$path") {
+            return Err(XValidationFailure::InvalidSchema {
+                message: format!(
+                    "validation rule {:?} must interpolate a $path operand or use x-uniqueBy",
+                    rule.id
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn contains_exact_marker(value: &Value, marker: &str) -> bool {
+    match value {
+        Value::Array(values) => values
+            .iter()
+            .any(|value| contains_exact_marker(value, marker)),
+        Value::Object(object) => {
+            (object.len() == 1 && object.contains_key(marker))
+                || object
+                    .values()
+                    .any(|value| contains_exact_marker(value, marker))
+        }
+        _ => false,
+    }
+}
+
+fn contains_nested_unique_by(assertion: &Value) -> bool {
+    let Some(object) = assertion.as_object() else {
+        return false;
+    };
+    for keyword in ["not", "if", "then", "else", "contains"] {
+        if object
+            .get(keyword)
+            .is_some_and(assertion_contains_unique_by)
+        {
+            return true;
+        }
+    }
+    for keyword in ["allOf", "anyOf", "oneOf"] {
+        if object.get(keyword).is_some_and(|value| {
+            value
+                .as_array()
+                .is_some_and(|assertions| assertions.iter().any(assertion_contains_unique_by))
+        }) {
+            return true;
+        }
+    }
+    false
+}
+
+fn assertion_contains_unique_by(assertion: &Value) -> bool {
+    assertion
+        .as_object()
+        .is_some_and(|object| object.contains_key("x-uniqueBy"))
+        || contains_nested_unique_by(assertion)
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -475,7 +485,7 @@ mod tests {
             "x-validations": [{
                 "id": "value-rule",
                 "target": "$.value",
-                "assert": {"const": "ok"}
+                "assert": {"const": {"$path": "$.expected"}}
             }]
         }))
         .expect("resource should prepare");

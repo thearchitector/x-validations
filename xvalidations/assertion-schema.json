@@ -1,0 +1,1782 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thearchitector.dev/xvalidations/assertion-schema.json",
+  "title": "X-Validations assertion meta-schema",
+  "type": "object",
+  "required": ["target", "assert"],
+  "properties": {
+    "target": {
+      "$ref": "#/$defs/target"
+    },
+    "assert": {
+      "$ref": "#/$defs/rootAssertion"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "not": {
+              "$ref": "#/$defs/targetAllowsString"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "assert": {
+            "$ref": "#/$defs/noStringAssertions"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "not": {
+              "$ref": "#/$defs/targetAllowsNumber"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "assert": {
+            "$ref": "#/$defs/noNumberAssertions"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "not": {
+              "$ref": "#/$defs/targetAllowsArray"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "assert": {
+            "$ref": "#/$defs/noArrayAssertions"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "target": {
+            "not": {
+              "$ref": "#/$defs/targetAllowsObject"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "assert": {
+            "$ref": "#/$defs/noObjectAssertions"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "typeName": {
+      "enum": [
+        "null",
+        "boolean",
+        "object",
+        "array",
+        "number",
+        "string",
+        "integer"
+      ]
+    },
+    "typeValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/typeName"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/typeName"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      ]
+    },
+    "target": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/targetAllowsNull"
+        },
+        {
+          "$ref": "#/$defs/targetAllowsBoolean"
+        },
+        {
+          "$ref": "#/$defs/targetAllowsString"
+        },
+        {
+          "$ref": "#/$defs/targetAllowsNumber"
+        },
+        {
+          "$ref": "#/$defs/targetAllowsArray"
+        },
+        {
+          "$ref": "#/$defs/targetAllowsObject"
+        }
+      ]
+    },
+    "targetAllowsNull": {
+      "$ref": "#/$defs/schemaAllowsNull"
+    },
+    "targetAllowsBoolean": {
+      "$ref": "#/$defs/schemaAllowsBoolean"
+    },
+    "targetAllowsString": {
+      "$ref": "#/$defs/schemaAllowsString"
+    },
+    "targetAllowsNumber": {
+      "$ref": "#/$defs/schemaAllowsNumber"
+    },
+    "targetAllowsArray": {
+      "$ref": "#/$defs/schemaAllowsArray"
+    },
+    "targetAllowsObject": {
+      "$ref": "#/$defs/schemaAllowsObject"
+    },
+    "nullTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "null"
+            },
+            {
+              "type": "array",
+              "contains": {
+                "const": "null"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasNull": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/nullTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasNull"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasNull"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasNull"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesNull": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "const": "null"
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "const": "null"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesNull"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesNull"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesNull"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsNull": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasNull"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesNull"
+          }
+        }
+      ]
+    },
+    "booleanTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "boolean"
+            },
+            {
+              "type": "array",
+              "contains": {
+                "const": "boolean"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasBoolean": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/booleanTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasBoolean"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasBoolean"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasBoolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesBoolean": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "const": "boolean"
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "const": "boolean"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesBoolean"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesBoolean"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesBoolean"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsBoolean": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasBoolean"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesBoolean"
+          }
+        }
+      ]
+    },
+    "stringTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "string"
+            },
+            {
+              "type": "array",
+              "contains": {
+                "const": "string"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasString": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/stringTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasString"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasString"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasString"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesString": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "const": "string"
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "const": "string"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesString"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesString"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesString"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsString": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasString"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesString"
+          }
+        }
+      ]
+    },
+    "numberTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "enum": ["number", "integer"]
+            },
+            {
+              "type": "array",
+              "contains": {
+                "enum": ["number", "integer"]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasNumber": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/numberTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasNumber"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasNumber"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasNumber"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesNumber": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "enum": ["number", "integer"]
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "enum": ["number", "integer"]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesNumber"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesNumber"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesNumber"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsNumber": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasNumber"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesNumber"
+          }
+        }
+      ]
+    },
+    "integerTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "integer"
+            },
+            {
+              "type": "array",
+              "contains": {
+                "const": "integer"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasInteger": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/integerTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasInteger"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasInteger"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasInteger"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesInteger": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "const": "integer"
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "const": "integer"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesInteger"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesInteger"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesInteger"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsInteger": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasInteger"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesInteger"
+          }
+        }
+      ]
+    },
+    "arrayTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "array"
+            },
+            {
+              "type": "array",
+              "contains": {
+                "const": "array"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasArray": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/arrayTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasArray"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasArray"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasArray"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesArray": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "const": "array"
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "const": "array"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesArray"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesArray"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesArray"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsArray": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasArray"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesArray"
+          }
+        }
+      ]
+    },
+    "objectTypeObject": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "object"
+            },
+            {
+              "type": "array",
+              "contains": {
+                "const": "object"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "schemaHasObject": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/objectTypeObject"
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasObject"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasObject"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaHasObject"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaExcludesObject": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": {
+              "not": {
+                "anyOf": [
+                  {
+                    "const": "object"
+                  },
+                  {
+                    "type": "array",
+                    "contains": {
+                      "const": "object"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["allOf"],
+          "properties": {
+            "allOf": {
+              "type": "array",
+              "minItems": 1,
+              "contains": {
+                "$ref": "#/$defs/schemaExcludesObject"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["anyOf"],
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesObject"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["oneOf"],
+          "properties": {
+            "oneOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/schemaExcludesObject"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "schemaAllowsObject": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/schemaHasObject"
+        },
+        {
+          "not": {
+            "$ref": "#/$defs/schemaExcludesObject"
+          }
+        }
+      ]
+    },
+    "noStringAssertions": {
+      "properties": {
+        "maxLength": false,
+        "minLength": false,
+        "pattern": false,
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/noStringAssertions"
+          }
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/noStringAssertions"
+          }
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/noStringAssertions"
+          }
+        },
+        "not": {
+          "$ref": "#/$defs/noStringAssertions"
+        },
+        "if": {
+          "$ref": "#/$defs/noStringAssertions"
+        },
+        "then": {
+          "$ref": "#/$defs/noStringAssertions"
+        },
+        "else": {
+          "$ref": "#/$defs/noStringAssertions"
+        }
+      }
+    },
+    "noNumberAssertions": {
+      "properties": {
+        "multipleOf": false,
+        "maximum": false,
+        "exclusiveMaximum": false,
+        "minimum": false,
+        "exclusiveMinimum": false,
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/noNumberAssertions"
+          }
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/noNumberAssertions"
+          }
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/noNumberAssertions"
+          }
+        },
+        "not": {
+          "$ref": "#/$defs/noNumberAssertions"
+        },
+        "if": {
+          "$ref": "#/$defs/noNumberAssertions"
+        },
+        "then": {
+          "$ref": "#/$defs/noNumberAssertions"
+        },
+        "else": {
+          "$ref": "#/$defs/noNumberAssertions"
+        }
+      }
+    },
+    "noArrayAssertions": {
+      "properties": {
+        "maxItems": false,
+        "minItems": false,
+        "uniqueItems": false,
+        "contains": false,
+        "maxContains": false,
+        "minContains": false,
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/noArrayAssertions"
+          }
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/noArrayAssertions"
+          }
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/noArrayAssertions"
+          }
+        },
+        "not": {
+          "$ref": "#/$defs/noArrayAssertions"
+        },
+        "if": {
+          "$ref": "#/$defs/noArrayAssertions"
+        },
+        "then": {
+          "$ref": "#/$defs/noArrayAssertions"
+        },
+        "else": {
+          "$ref": "#/$defs/noArrayAssertions"
+        },
+        "x-uniqueBy": false
+      }
+    },
+    "noObjectAssertions": {
+      "properties": {
+        "maxProperties": false,
+        "minProperties": false,
+        "required": false,
+        "dependentRequired": false,
+        "allOf": {
+          "items": {
+            "$ref": "#/$defs/noObjectAssertions"
+          }
+        },
+        "anyOf": {
+          "items": {
+            "$ref": "#/$defs/noObjectAssertions"
+          }
+        },
+        "oneOf": {
+          "items": {
+            "$ref": "#/$defs/noObjectAssertions"
+          }
+        },
+        "not": {
+          "$ref": "#/$defs/noObjectAssertions"
+        },
+        "if": {
+          "$ref": "#/$defs/noObjectAssertions"
+        },
+        "then": {
+          "$ref": "#/$defs/noObjectAssertions"
+        },
+        "else": {
+          "$ref": "#/$defs/noObjectAssertions"
+        }
+      }
+    },
+    "pathOrNumber": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsNumber"
+        }
+      ]
+    },
+    "pathOrNonNegativeInteger": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsInteger"
+        }
+      ]
+    },
+    "pathOrString": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "regex"
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsString"
+        }
+      ]
+    },
+    "pathOrBoolean": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsBoolean"
+        }
+      ]
+    },
+    "pathOrTypeValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/typeValue"
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsTypeValue"
+        }
+      ]
+    },
+    "stringArray": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "pathOrStringArray": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/stringArray"
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsStringArray"
+        }
+      ]
+    },
+    "dependentRequired": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/stringArray"
+      }
+    },
+    "pathOrDependentRequired": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/dependentRequired"
+        },
+        {
+          "$ref": "#/$defs/schemaAllowsDependentRequired"
+        }
+      ]
+    },
+    "schemaAllowsStringArray": {
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/schemaAllowsArray"
+            },
+            {
+              "type": "object",
+              "required": ["items"],
+              "properties": {
+                "items": {
+                  "$ref": "#/$defs/schemaAllowsString"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            {
+              "required": ["anyOf"],
+              "properties": {
+                "anyOf": {
+                  "type": "array",
+                  "contains": {
+                    "$ref": "#/$defs/schemaAllowsStringArray"
+                  }
+                }
+              }
+            },
+            {
+              "required": ["oneOf"],
+              "properties": {
+                "oneOf": {
+                  "type": "array",
+                  "contains": {
+                    "$ref": "#/$defs/schemaAllowsStringArray"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "schemaAllowsDependentRequired": {
+      "anyOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/schemaAllowsObject"
+            },
+            {
+              "type": "object",
+              "required": ["additionalProperties"],
+              "properties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/schemaAllowsStringArray"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            {
+              "required": ["anyOf"],
+              "properties": {
+                "anyOf": {
+                  "type": "array",
+                  "contains": {
+                    "$ref": "#/$defs/schemaAllowsDependentRequired"
+                  }
+                }
+              }
+            },
+            {
+              "required": ["oneOf"],
+              "properties": {
+                "oneOf": {
+                  "type": "array",
+                  "contains": {
+                    "$ref": "#/$defs/schemaAllowsDependentRequired"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "schemaAllowsTypeValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/schemaAllowsTypeName"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/schemaAllowsArray"
+            },
+            {
+              "type": "object",
+              "required": ["items"],
+              "properties": {
+                "items": {
+                  "$ref": "#/$defs/schemaAllowsTypeName"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "anyOf": [
+            {
+              "required": ["anyOf"],
+              "properties": {
+                "anyOf": {
+                  "type": "array",
+                  "contains": {
+                    "$ref": "#/$defs/schemaAllowsTypeValue"
+                  }
+                }
+              }
+            },
+            {
+              "required": ["oneOf"],
+              "properties": {
+                "oneOf": {
+                  "type": "array",
+                  "contains": {
+                    "$ref": "#/$defs/schemaAllowsTypeValue"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "schemaAllowsTypeName": {
+      "type": "object",
+      "anyOf": [
+        {
+          "required": ["const"],
+          "properties": {
+            "const": {
+              "$ref": "#/$defs/typeName"
+            }
+          }
+        },
+        {
+          "required": ["enum"],
+          "properties": {
+            "enum": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/typeName"
+              },
+              "minItems": 1
+            }
+          }
+        }
+      ]
+    },
+    "assertionArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/assertion"
+      },
+      "minItems": 1
+    },
+    "uniqueByAssertion": {
+      "type": "object",
+      "required": ["x-uniqueBy"],
+      "properties": {
+        "x-uniqueBy": {
+          "type": "string",
+          "pattern": "^\\$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "hasValidationKeyword": {
+      "anyOf": [
+        {
+          "required": ["allOf"]
+        },
+        {
+          "required": ["anyOf"]
+        },
+        {
+          "required": ["oneOf"]
+        },
+        {
+          "required": ["not"]
+        },
+        {
+          "required": ["if"]
+        },
+        {
+          "required": ["then"]
+        },
+        {
+          "required": ["else"]
+        },
+        {
+          "required": ["contains"]
+        },
+        {
+          "required": ["const"]
+        },
+        {
+          "required": ["enum"]
+        },
+        {
+          "required": ["multipleOf"]
+        },
+        {
+          "required": ["maximum"]
+        },
+        {
+          "required": ["exclusiveMaximum"]
+        },
+        {
+          "required": ["minimum"]
+        },
+        {
+          "required": ["exclusiveMinimum"]
+        },
+        {
+          "required": ["maxLength"]
+        },
+        {
+          "required": ["minLength"]
+        },
+        {
+          "required": ["pattern"]
+        },
+        {
+          "required": ["maxItems"]
+        },
+        {
+          "required": ["minItems"]
+        },
+        {
+          "required": ["uniqueItems"]
+        },
+        {
+          "required": ["maxContains"]
+        },
+        {
+          "required": ["minContains"]
+        },
+        {
+          "required": ["maxProperties"]
+        },
+        {
+          "required": ["minProperties"]
+        },
+        {
+          "required": ["required"]
+        },
+        {
+          "required": ["dependentRequired"]
+        }
+      ]
+    },
+    "draftAssertion": {
+      "type": "object",
+      "properties": {
+        "allOf": {
+          "$ref": "#/$defs/assertionArray"
+        },
+        "anyOf": {
+          "$ref": "#/$defs/assertionArray"
+        },
+        "oneOf": {
+          "$ref": "#/$defs/assertionArray"
+        },
+        "not": {
+          "$ref": "#/$defs/assertion"
+        },
+        "if": {
+          "$ref": "#/$defs/assertion"
+        },
+        "then": {
+          "$ref": "#/$defs/assertion"
+        },
+        "else": {
+          "$ref": "#/$defs/assertion"
+        },
+        "contains": {
+          "$ref": "#/$defs/assertion"
+        },
+        "type": {
+          "$ref": "#/$defs/pathOrTypeValue"
+        },
+        "const": true,
+        "enum": {
+          "anyOf": [
+            {
+              "type": "array",
+              "minItems": 1
+            },
+            {
+              "$ref": "#/$defs/schemaAllowsArray"
+            }
+          ]
+        },
+        "multipleOf": {
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "$ref": "#/$defs/schemaAllowsNumber"
+            }
+          ]
+        },
+        "maximum": {
+          "$ref": "#/$defs/pathOrNumber"
+        },
+        "exclusiveMaximum": {
+          "$ref": "#/$defs/pathOrNumber"
+        },
+        "minimum": {
+          "$ref": "#/$defs/pathOrNumber"
+        },
+        "exclusiveMinimum": {
+          "$ref": "#/$defs/pathOrNumber"
+        },
+        "maxLength": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "minLength": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "pattern": {
+          "$ref": "#/$defs/pathOrString"
+        },
+        "maxItems": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "minItems": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "uniqueItems": {
+          "$ref": "#/$defs/pathOrBoolean"
+        },
+        "maxContains": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "minContains": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "maxProperties": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "minProperties": {
+          "$ref": "#/$defs/pathOrNonNegativeInteger"
+        },
+        "required": {
+          "$ref": "#/$defs/pathOrStringArray"
+        },
+        "dependentRequired": {
+          "$ref": "#/$defs/pathOrDependentRequired"
+        }
+      },
+      "additionalProperties": false
+    },
+    "assertion": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/uniqueByAssertion"
+        },
+        {
+          "$ref": "#/$defs/draftAssertion"
+        }
+      ]
+    },
+    "rootAssertion": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/uniqueByAssertion"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/draftAssertion"
+            },
+            {
+              "$ref": "#/$defs/hasValidationKeyword"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

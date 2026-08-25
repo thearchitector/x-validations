@@ -1,19 +1,17 @@
-"""Stable exported data contracts."""
+from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from .path import Path
+from .types import JsonScalar
 
-type JsonScalar = None | bool | int | float | str
-type JsonObject = dict[str, JsonValue]
+type RuleAssertionValue = (
+    JsonScalar | Path | list[RuleAssertionValue] | dict[str, RuleAssertionValue]
+)
+type RuleAssertion = dict[str, RuleAssertionValue]
 
-__all__ = ["JsonObject", "JsonScalar", "JsonValue", "XValidationRule"]
 
+@dataclass(frozen=True, slots=True)
+class ValidationRule:
+    """A typed target path and the JSON Schema assertion applied to it."""
 
-class XValidationRule(BaseModel):
-    """Exported x-validation rule."""
-
-    model_config = ConfigDict(populate_by_name=True, strict=True)
-
-    id: str
-    description: str | None = None
-    target: str
-    assert_: JsonValue = Field(alias="assert")
+    target: Path
+    assertion: RuleAssertion

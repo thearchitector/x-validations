@@ -1,9 +1,7 @@
 use js_sys::{Error, Reflect};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
-use xvalidations_core::{
-    xvalidate as core_xvalidate, XValidationBindingFailure, XValidationFailure,
-};
+use xvalidations_core::{xvalidate as core_xvalidate, XValidationFailure};
 
 #[wasm_bindgen(typescript_custom_section)]
 const TYPESCRIPT_TYPES: &str = r#"
@@ -47,11 +45,8 @@ fn failure_to_js(failure: XValidationFailure) -> JsValue {
 }
 
 fn conversion_failure(kind: &'static str, message: &str) -> JsValue {
-    binding_failure_to_js_error(
-        "XValidationTypeError",
-        &XValidationBindingFailure::new(kind, message),
-    )
-    .unwrap_or_else(|_| JsValue::from_str(message))
+    binding_failure_to_js_error("XValidationTypeError", kind, message)
+        .unwrap_or_else(|_| JsValue::from_str(message))
 }
 
 fn core_failure_to_js_error(failure: &XValidationFailure) -> Result<JsValue, JsValue> {
@@ -83,12 +78,14 @@ fn core_failure_to_js_error(failure: &XValidationFailure) -> Result<JsValue, JsV
 
 fn binding_failure_to_js_error(
     name: &'static str,
-    failure: &XValidationBindingFailure,
+    kind: &str,
+    message: &str,
 ) -> Result<JsValue, JsValue> {
-    let failure_value = serde_wasm_bindgen::to_value(failure)?;
-    let error = JsValue::from(Error::new(&failure.message));
+    let failure = serde_json::json!({"kind": kind, "message": message});
+    let failure_value = serde_wasm_bindgen::to_value(&failure)?;
+    let error = JsValue::from(Error::new(message));
     set_property(&error, "name", &JsValue::from_str(name))?;
-    set_property(&error, "kind", &JsValue::from_str(&failure.kind))?;
+    set_property(&error, "kind", &JsValue::from_str(kind))?;
     set_property(&error, "failure", &failure_value)?;
     Ok(error)
 }

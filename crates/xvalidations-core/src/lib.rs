@@ -1,14 +1,14 @@
 mod artifact;
 mod compiler;
+mod interpolate;
 mod jsonpath;
 mod meta;
 mod pointer;
-mod resolve;
 mod types;
 
 use serde_json::Value;
 
-pub use types::{ValidationError, XValidationBindingFailure, XValidationFailure};
+pub use types::{ValidationError, XValidationFailure};
 
 use crate::artifact::{prepare_schema, PreparedSchema};
 use crate::compiler::{validate_occurrences, ResourceOccurrence};
@@ -18,7 +18,7 @@ use crate::pointer::pointer_to_jsonpath;
 ///
 /// # Errors
 ///
-/// Returns schema, rule, `JSONPath`, binding-resolution, or validation failures.
+/// Returns schema, rule, `JSONPath`, or validation failures.
 pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailure> {
     let prepared = prepare_schema(schema)?;
     let base_validator = jsonschema::options()

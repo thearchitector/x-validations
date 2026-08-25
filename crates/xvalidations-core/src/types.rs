@@ -18,35 +18,8 @@ pub enum XValidationFailure {
     InvalidRule { message: String },
     #[error("jsonpath error: {message}")]
     JsonPath { message: String },
-    #[error("resolve error: {message}")]
-    Resolve { message: String },
     #[error("{count} validation error(s)", count = errors.len())]
     Validation { errors: Vec<ValidationError> },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct XValidationBindingFailure {
-    pub kind: String,
-    pub message: String,
-}
-
-impl XValidationBindingFailure {
-    #[must_use]
-    pub fn new(kind: impl Into<String>, message: impl Into<String>) -> Self {
-        Self {
-            kind: kind.into(),
-            message: message.into(),
-        }
-    }
-
-    /// Serialize this binding failure for a language binding.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if serialization fails.
-    pub fn to_json_value(&self) -> Result<Value, serde_json::Error> {
-        serde_json::to_value(self)
-    }
 }
 
 impl XValidationFailure {
@@ -56,7 +29,6 @@ impl XValidationFailure {
             Self::InvalidSchema { .. } => "invalid_schema",
             Self::InvalidRule { .. } => "invalid_rule",
             Self::JsonPath { .. } => "json_path",
-            Self::Resolve { .. } => "resolve",
             Self::Validation { .. } => "validation",
         }
     }
@@ -67,7 +39,6 @@ impl XValidationFailure {
             Self::InvalidSchema { .. } => "ExportedSchemaError",
             Self::InvalidRule { .. } => "InvalidRuleError",
             Self::JsonPath { .. } => "JsonPathError",
-            Self::Resolve { .. } => "ResolveError",
             Self::Validation { .. } => "XValidationError",
         }
     }
@@ -76,10 +47,7 @@ impl XValidationFailure {
     pub fn errors(&self) -> Option<&[ValidationError]> {
         match self {
             Self::Validation { errors } => Some(errors),
-            Self::InvalidSchema { .. }
-            | Self::InvalidRule { .. }
-            | Self::JsonPath { .. }
-            | Self::Resolve { .. } => None,
+            Self::InvalidSchema { .. } | Self::InvalidRule { .. } | Self::JsonPath { .. } => None,
         }
     }
 
