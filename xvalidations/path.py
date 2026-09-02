@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal
 
-from .types import JsonScalar, checkcall
+from .types import JsonScalar
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -56,15 +56,12 @@ class Expr:
             raise AttributeError(name)
         return Expr((*self.segments, KeySelector(name)))
 
-    @checkcall
     def __getitem__(self, name: str) -> Expr:
         return Expr((*self.segments, KeySelector(name)))
 
-    @checkcall
     def __eq__(self, other: JsonScalar) -> Comparison:  # type: ignore[override]
         return Comparison(self, "==", other)
 
-    @checkcall
     def __ne__(self, other: JsonScalar) -> Comparison:  # type: ignore[override]
         return Comparison(self, "!=", other)
 
@@ -98,12 +95,10 @@ class Path:
 
     segments: tuple[Segment, ...] = ()
 
-    @checkcall
     def select(self, selector: Selector, *selectors: Selector) -> Path:
         """Append a child segment."""
         return Path((*self.segments, Segment((selector, *selectors))))
 
-    @checkcall
     def desc(
         self, selector_or_name: Selector | str, *selectors_or_names: Selector | str
     ) -> Path:
@@ -118,19 +113,16 @@ class Path:
         """Append a wildcard child selector."""
         return Path((*self.segments, Segment((WildcardSelector(),))))
 
-    @checkcall
     def at(self, index: int) -> Path:
         """Append an array index selector."""
         return Path((*self.segments, Segment((IndexSelector(index),))))
 
-    @checkcall
     def slice(
         self, start: int | None = None, stop: int | None = None, step: int | None = None
     ) -> Path:
         """Append an array slice selector."""
         return Path((*self.segments, Segment((SliceSelector(start, stop, step),))))
 
-    @checkcall
     def where(self, predicate: Comparison) -> Path:
         """Append a filter selector."""
         return Path((*self.segments, Segment((FilterSelector(predicate),))))
@@ -144,7 +136,6 @@ class Path:
             raise AttributeError(name)
         return Path((*self.segments, Segment((KeySelector(name),))))
 
-    @checkcall
     def __getitem__(self, name: str) -> Path:
         return Path((*self.segments, Segment((KeySelector(name),))))
 

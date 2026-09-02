@@ -13,7 +13,6 @@ from .path import (
     SliceSelector,
     WildcardSelector,
 )
-from .types import checkcall
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +32,6 @@ class XValidationContext:
     this: Expr = field(default_factory=Expr)
 
     @staticmethod
-    @checkcall
     def key(name: str) -> KeySelector:
         return KeySelector(name)
 
@@ -42,23 +40,19 @@ class XValidationContext:
         return WildcardSelector()
 
     @staticmethod
-    @checkcall
     def index(index: int) -> IndexSelector:
         return IndexSelector(index)
 
     @staticmethod
-    @checkcall
     def slice(
         start: int | None = None, stop: int | None = None, step: int | None = None
     ) -> SliceSelector:
         return SliceSelector(start, stop, step)
 
     @staticmethod
-    @checkcall
     def filter(predicate: Comparison) -> FilterSelector:
         return FilterSelector(predicate)
 
-    @checkcall
     def target(self, path_object: Path) -> _RuleBuilder:
         return _RuleBuilder(path_object)
 
@@ -147,13 +141,6 @@ def xvalidation(
     | Callable[[classmethod[Any, Any, ValidationRule]], _XValidationDescriptor]
 ):
     """Declare a model-scoped Validation Rule on a classmethod."""
-
-    if id is not None and not isinstance(id, str):
-        raise TypeError("xvalidation id must be a string or None")
-    if description is not None and not isinstance(description, str):
-        raise TypeError("xvalidation description must be a string or None")
-    if not isinstance(override, bool):
-        raise TypeError("xvalidation override must be a bool")
 
     def decorate(
         decorated: classmethod[Any, Any, ValidationRule],

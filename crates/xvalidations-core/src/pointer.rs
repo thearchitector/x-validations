@@ -29,18 +29,6 @@ pub(crate) fn is_array_index(token: &str) -> bool {
             && token.chars().all(|character| character.is_ascii_digit()))
 }
 
-pub(crate) fn join(pointer: &str, token: &str) -> String {
-    format!("{pointer}/{}", token.replace('~', "~0").replace('/', "~1"))
-}
-
-pub(crate) fn is_ancestor(ancestor: &str, descendant: &str) -> bool {
-    ancestor.is_empty()
-        || descendant == ancestor
-        || descendant
-            .strip_prefix(ancestor)
-            .is_some_and(|suffix| suffix.starts_with('/'))
-}
-
 pub(crate) fn location_from_pointer(pointer: &str, root: &Value) -> Vec<LocationSegment> {
     let mut location = Vec::new();
     let mut current = Some(root);

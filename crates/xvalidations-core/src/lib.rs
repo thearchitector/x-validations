@@ -1,8 +1,6 @@
-mod artifact;
 mod compiler;
 mod interpolate;
 mod jsonpath;
-mod meta;
 mod pointer;
 mod types;
 
@@ -10,23 +8,29 @@ use serde_json::Value;
 
 pub use types::{ValidationError, XValidationFailure};
 
-use crate::artifact::{prepare_schema, PreparedSchema};
-use crate::compiler::{validate_occurrences, ResourceOccurrence};
+use crate::compiler::{validate_rules, ValidationRule};
 use crate::pointer::pointer_to_jsonpath;
 
-/// Validate an instance against its base schema and all matched X-Validation rules.
+const DRAFT202012_SCHEMA_URI: &str = "https://json-schema.org/draft/2020-12/schema";
+const XVALIDATIONS_SCHEMA_URI: &str = "https://thearchitector.dev/xvalidations/schema.json";
+
+struct RuntimeSchema {
+    base_schema: Value,
+    rules: Vec<ValidationRule>,
+}
+
+/// Validate an instance against its base schema and root X-Validation rules.
 ///
 /// # Errors
 ///
-/// Returns schema, rule, `JSONPath`, or validation failures.
+/// Returns schema, rule, JSONPath, or validation failures.
 pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailure> {
-    let prepared = prepare_schema(schema)?;
+    let runtime = split_root_schema(schema)?;
     let base_validator = jsonschema::options()
         .with_draft(jsonschema::Draft::Draft202012)
-        .with_registry(&prepared.registry)
-        .build(&prepared.base_schema)
+        .build(&runtime.base_schema)
         .map_err(|error| XValidationFailure::InvalidSchema {
-            message: format!("normalized base schema is not valid Draft 2020-12: {error}"),
+            message: error.to_string(),
         })?;
 
     let base_errors = base_validator
@@ -43,9 +47,7 @@ pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailu
         });
     }
 
-    let evaluation = base_validator.evaluate(payload);
-    let occurrences = resource_occurrences(&evaluation, &prepared)?;
-    let errors = validate_occurrences(&prepared, payload, &occurrences)?;
+    let errors = validate_rules(&runtime.rules, payload)?;
     if errors.is_empty() {
         Ok(())
     } else {
@@ -55,36 +57,29 @@ pub fn xvalidate(payload: &Value, schema: &Value) -> Result<(), XValidationFailu
     }
 }
 
-fn resource_occurrences(
-    evaluation: &jsonschema::Evaluation,
-    prepared: &PreparedSchema,
-) -> Result<Vec<ResourceOccurrence>, XValidationFailure> {
-    let mut occurrences = Vec::new();
-    for annotation in evaluation.iter_annotations() {
-        let Some(object) = annotation.annotations.value().as_object() else {
-            continue;
-        };
-        if !object.contains_key("x-validations") {
-            continue;
-        }
-
-        let resource_id = annotation
-            .absolute_keyword_location
-            .as_ref()
-            .and_then(|location| prepared.resource_id_for_absolute_location(location.as_str()))
-            .or_else(|| prepared.resource_id_for_schema_location(annotation.schema_location))
-            .ok_or_else(|| XValidationFailure::InvalidSchema {
-                message: format!(
-                    "X-Validations annotation at {} does not identify a prepared resource",
-                    annotation.schema_location
-                ),
-            })?;
-        occurrences.push(ResourceOccurrence {
-            resource_id: resource_id.to_string(),
-            instance_pointer: annotation.instance_location.as_str().to_string(),
+fn split_root_schema(schema: &Value) -> Result<RuntimeSchema, XValidationFailure> {
+    if schema.get("$schema").and_then(Value::as_str) != Some(XVALIDATIONS_SCHEMA_URI) {
+        return Ok(RuntimeSchema {
+            base_schema: schema.clone(),
+            rules: Vec::new(),
         });
     }
-    Ok(occurrences)
+
+    let mut base_schema = schema.clone();
+    let object = base_schema
+        .as_object_mut()
+        .expect("an x-validations root schema is an object");
+    object.insert(
+        "$schema".to_string(),
+        Value::String(DRAFT202012_SCHEMA_URI.to_string()),
+    );
+    let rules = object
+        .remove("x-validations")
+        .expect("an x-validations root schema declares rules");
+    let rules = serde_json::from_value(rules).map_err(|error| XValidationFailure::InvalidRule {
+        message: error.to_string(),
+    })?;
+    Ok(RuntimeSchema { base_schema, rules })
 }
 
 fn sorted_errors(mut errors: Vec<ValidationError>) -> Vec<ValidationError> {

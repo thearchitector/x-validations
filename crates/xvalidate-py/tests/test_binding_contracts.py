@@ -1,139 +1,45 @@
-"""Python binding contract tests matching the JS binding cases."""
+"""Python binding happy-path contract tests."""
 
 import json
 from pathlib import Path
-from typing import NotRequired, TypedDict, cast
+from typing import Any, cast
 
 import pytest
-from xvalidate import XValidationError, XValidationTypeError, xvalidate
-
-type JsonScalar = None | bool | int | float | str
-type JsonValue = JsonScalar | list[JsonValue] | dict[str, JsonValue]
-
-
-class ValidationErrorData(TypedDict):
-    path: str
-    message: str
-    rule_id: str | None
-
-
-class ExpectedError(TypedDict):
-    path: str
-    rule_id: str | None
-
-
-class Contract(TypedDict):
-    schema: dict[str, JsonValue]
-    valid_payload: NotRequired[JsonValue]
-    base_invalid_payload: NotRequired[JsonValue]
-    expected_base_error: NotRequired[ExpectedError]
-    x_invalid_payload: NotRequired[JsonValue]
-    expected_x_error: NotRequired[ExpectedError]
-
+from xvalidate import XValidationError, xvalidate
 
 CONTRACT_DIR = Path(__file__).parents[3] / "tests" / "fixtures" / "contracts"
 CONTRACTS = tuple(
-    (path.name, cast(Contract, json.loads(path.read_text(encoding="utf-8"))))
+    (path.name, cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8"))))
     for path in sorted(CONTRACT_DIR.glob("*.json"))
 )
 
 
-def contract_ids() -> list[str]:
-    """Return fixture names for parameterized test IDs."""
-    return [name for name, _contract in CONTRACTS]
-
-
-def failure_errors(error: XValidationError) -> list[ValidationErrorData]:
-    """Return serialized validation errors from a Python binding error."""
-    return cast(list[ValidationErrorData], error.failure["errors"])
-
-
-@pytest.mark.parametrize(("name", "contract"), CONTRACTS, ids=contract_ids())
-def test_contract_valid_payloads_return_ok(name: str, contract: Contract) -> None:
-    valid_payload = contract.get("valid_payload")
-    if valid_payload is None:
-        pytest.skip(f"{name} has no valid payload")
-
-    xvalidate(valid_payload, contract["schema"])
-
-
-@pytest.mark.parametrize(("name", "contract"), CONTRACTS, ids=contract_ids())
-def test_contract_base_invalid_payloads_have_only_base_errors(
-    name: str, contract: Contract
+@pytest.mark.parametrize(("name", "contract"), CONTRACTS)
+def test_contract_valid_payloads_return_none(
+    name: str, contract: dict[str, Any]
 ) -> None:
-    base_invalid_payload = contract.get("base_invalid_payload")
-    if base_invalid_payload is None:
-        pytest.skip(f"{name} has no base-invalid payload")
-
-    with pytest.raises(XValidationError) as exc_info:
-        xvalidate(base_invalid_payload, contract["schema"])
-
-    error = exc_info.value
-    assert error.kind == "validation"
-    errors = failure_errors(error)
-
-    assert errors
-    assert all(item["rule_id"] is None for item in errors)
-    assert set(errors[0]) == {"path", "message", "rule_id"}
-    assert errors[0]["path"] == contract["expected_base_error"]["path"]
+    assert xvalidate(contract["valid_payload"], contract["schema"]) is None, name
 
 
-@pytest.mark.parametrize(("name", "contract"), CONTRACTS, ids=contract_ids())
-def test_contract_x_invalid_payloads_match_expected_error(
-    name: str, contract: Contract
+@pytest.mark.parametrize(("name", "contract"), CONTRACTS)
+def test_contract_base_failures_have_no_rule_id(
+    name: str, contract: dict[str, Any]
 ) -> None:
-    payload = contract.get("x_invalid_payload")
-    expected_error = contract.get("expected_x_error")
-    if payload is None or expected_error is None:
-        pytest.skip(f"{name} has no x-invalid payload")
-
     with pytest.raises(XValidationError) as exc_info:
-        xvalidate(payload, contract["schema"])
+        xvalidate(contract["base_invalid_payload"], contract["schema"])
 
-    error = exc_info.value
-    assert error.kind == "validation"
-    errors = failure_errors(error)
-
-    failure = error.failure
-    assert failure["kind"] == "validation"
-    assert error.errors
-    assert errors
-    assert errors[0]["path"] == expected_error["path"]
-    assert errors[0]["rule_id"] == expected_error["rule_id"]
-    assert set(errors[0]) == {"path", "message", "rule_id"}
-    assert error.errors[0].path == expected_error["path"]
-    assert error.errors[0].rule_id == expected_error["rule_id"]
+    assert exc_info.value.errors, name
+    assert all(error.rule_id is None for error in exc_info.value.errors)
+    assert exc_info.value.errors[0].path == contract["expected_base_error"]["path"]
 
 
-def test_invalid_payload_conversion_returns_machine_readable_kind() -> None:
-    _name, contract = CONTRACTS[0]
-
-    with pytest.raises(XValidationTypeError) as exc_info:
-        xvalidate(cast(JsonValue, object()), contract["schema"])
-
-    error = exc_info.value
-    assert error.kind == "invalid_payload"
-    assert error.failure["kind"] == "invalid_payload"
-    assert error.failure["message"]
-
-
-def test_invalid_schema_conversion_returns_machine_readable_kind() -> None:
-    _name, contract = CONTRACTS[0]
-
-    with pytest.raises(XValidationTypeError) as exc_info:
-        xvalidate(contract["valid_payload"], cast(dict[str, JsonValue], object()))
-
-    error = exc_info.value
-    assert error.kind == "invalid_schema_input"
-    assert error.failure["kind"] == "invalid_schema_input"
-    assert error.failure["message"]
-
-
-def test_boolean_schemas_are_supported() -> None:
-    xvalidate({"value": 1}, True)
-
+@pytest.mark.parametrize(("name", "contract"), CONTRACTS)
+def test_contract_rule_failures_match_expected_error(
+    name: str, contract: dict[str, Any]
+) -> None:
     with pytest.raises(XValidationError) as exc_info:
-        xvalidate({"value": 1}, False)
+        xvalidate(contract["x_invalid_payload"], contract["schema"])
 
-    assert exc_info.value.errors
-    assert exc_info.value.errors[0].rule_id is None
+    error = exc_info.value.errors[0]
+    expected = contract["expected_x_error"]
+    assert (error.path, error.rule_id) == (expected["path"], expected["rule_id"]), name

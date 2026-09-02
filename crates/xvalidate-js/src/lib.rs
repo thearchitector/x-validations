@@ -33,9 +33,6 @@ pub fn xvalidate(payload: JsValue, schema: JsValue) -> Result<(), JsValue> {
 }
 
 fn json_value_from_js(value: JsValue, kind: &'static str) -> Result<Value, JsValue> {
-    if value.is_undefined() {
-        return Err(conversion_failure(kind, "value must not be undefined"));
-    }
     serde_wasm_bindgen::from_value(value)
         .map_err(|error| conversion_failure(kind, &error.to_string()))
 }

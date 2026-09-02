@@ -10,7 +10,6 @@ use crate::types::XValidationFailure;
 pub(crate) struct JsonPathMatch {
     pub value: Value,
     pub location: Vec<LocationSegment>,
-    pub normalized_path: String,
 }
 
 pub(crate) fn evaluate_jsonpath(
@@ -35,7 +34,6 @@ pub(crate) fn evaluate_jsonpath(
         matches.push(JsonPathMatch {
             value: raw_match.val().clone(),
             location,
-            normalized_path,
         });
     }
     Ok(matches)

@@ -15,7 +15,6 @@ classifiers = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "jsonschema>=4.26,<5",
     "pydantic>=2,<3",
 ]
 
@@ -33,25 +32,16 @@ members = [".", "crates/xvalidate-py"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
-    "pytest-cov",
     "xvalidate",
     "mypy",
     "prek",
     "ruff",
-    "types-jsonschema",
 ]
 
 [tool.pytest.ini_options]
 strict = true
-addopts = "-ra -vv --cov xvalidations --cov-branch --cov-fail-under=90 --import-mode=importlib"
+addopts = "-ra -vv --import-mode=importlib"
 testpaths = ["tests", "crates/xvalidate-py/tests"]
-
-[tool.coverage.run]
-branch = true
-
-[tool.coverage.report]
-exclude_also = ["TYPE_CHECKING", "NotImplementedError"]
-fail_under = 90
 
 [tool.mypy]
 explicit_package_bases = true

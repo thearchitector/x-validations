@@ -25,11 +25,9 @@ fn interpolate_object(
 ) -> Result<Value, XValidationFailure> {
     if object.len() == 1 {
         if let Some(path_value) = object.get("$path") {
-            let Some(path) = path_value.as_str() else {
-                return Err(XValidationFailure::InvalidRule {
-                    message: "$path value must be a JSONPath string".to_string(),
-                });
-            };
+            let path = path_value
+                .as_str()
+                .expect("a $path operand contains a JSONPath string");
             return interpolate_path(path, payload);
         }
     }
@@ -46,15 +44,11 @@ fn interpolate_object(
 fn interpolate_path(path: &str, payload: &Value) -> Result<Value, XValidationFailure> {
     let matches = evaluate_jsonpath(path, payload)?;
     if is_singular(path)? {
-        return match matches.as_slice() {
-            [selected] => Ok(selected.value.clone()),
-            [] => Err(XValidationFailure::InvalidRule {
-                message: format!("singular $path {path:?} selected no value"),
-            }),
-            _ => Err(XValidationFailure::InvalidRule {
-                message: format!("singular $path {path:?} selected more than one value"),
-            }),
-        };
+        return Ok(matches
+            .into_iter()
+            .next()
+            .expect("a singular $path operand selects one value")
+            .value);
     }
     Ok(Value::Array(
         matches.into_iter().map(|selected| selected.value).collect(),
