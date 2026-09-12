@@ -1,5 +1,9 @@
 # pydantic-ajv
 
+![PyPI Downloads](https://img.shields.io/pypi/dm/pydantic-ajv?style=flat)
+![Made with AI](https://img.shields.io/badge/%E2%9C%A8-Made_with_AI-8A2BE2?style=flat)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/thearchitector/pydantic-ajv/ci.yaml?style=flat)
+
 Add composable validation rules to Pydantic models and export them as Ajv-compatible JSON Schema.
 
 It supports:
