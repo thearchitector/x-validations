@@ -1,0 +1,35 @@
+{
+  "wrong_comparison_enum": [
+    "arg-type"
+  ],
+  "wrong_logical_child": [
+    "arg-type"
+  ],
+  "wrong_logical_enum": [
+    "arg-type"
+  ],
+  "wrong_membership_predicate": [
+    "arg-type"
+  ],
+  "wrong_numeric_literal": [
+    "arg-type"
+  ],
+  "wrong_numeric_reference": [
+    "arg-type"
+  ],
+  "wrong_ordering_constraint": [
+    "arg-type"
+  ],
+  "wrong_ordering_predicate": [
+    "arg-type"
+  ],
+  "wrong_rule_node": [
+    "arg-type"
+  ],
+  "wrong_unique_projection": [
+    "arg-type"
+  ],
+  "wrong_uniqueness_predicate": [
+    "arg-type"
+  ]
+}

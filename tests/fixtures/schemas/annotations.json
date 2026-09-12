@@ -1,0 +1,64 @@
+{
+  "docstring": {
+    "allOf": [
+      {
+        "description": "Must be positive.\n\nDocumented separately from the error.",
+        "if": true,
+        "then": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "title": "positive"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "empty": {
+    "allOf": [
+      {
+        "description": "",
+        "errorMessage": "",
+        "if": true,
+        "then": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "title": "positive"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "escaped": {
+    "allOf": [
+      {
+        "description": "Must be positive.\n\nDocumented separately from the error.",
+        "errorMessage": "literal \\$\\{value}",
+        "if": true,
+        "then": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "title": "positive"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "explicit": {
+    "allOf": [
+      {
+        "description": "Explicit description",
+        "if": true,
+        "then": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "title": "positive"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  }
+}

@@ -1,59 +1,27 @@
 name: CICD
-
 on: push
-
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 jobs:
-  lint-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-python@v7
+              with:
+                  python-version-file: pyproject.toml
+            - uses: astral-sh/setup-uv@v10.0.1
+              with:
+                  enable-cache: true
 
-      - name: Install Python
-        uses: actions/setup-python@v7
-        with:
-          python-version-file: "pyproject.toml"
+            - name: Install dependencies
+              run: |
+                  uv sync --locked --group dev
+                  uv pip install pytest-github-actions-annotate-failures
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v10.0.1
-        with:
-          enable-cache: true
+            - name: Lint
+              run: uv run prek run --all-files --fail-fast
 
-      - name: Setup Rust cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install dependencies
-        run: |
-          curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
-          uv sync --locked --group dev
-          uv pip install pytest-github-actions-annotate-failures
-
-      - name: Lint
-        run: uv run prek run --all-files --fail-fast
-
-      - parallel:
-          - name: Test core
-            run: cargo test --workspace
-          - name: Test Python
-            run: uv run pytest
-          - name: Test WASM
-            run: |
-              wasm-pack test --headless --firefox crates/xvalidate-js
-              wasm-pack test --headless --chrome crates/xvalidate-js
-
-      - parallel:
-          - name: Build xvalidations
-            run: uv build
-          - name: Build xvalidate-py
-            run: uv build crates/xvalidate-py
-          - name: Build xvalidate-js
-            run: wasm-pack build crates/xvalidate-js --target bundler
+            - name: Test
+              run: uv run pytestw

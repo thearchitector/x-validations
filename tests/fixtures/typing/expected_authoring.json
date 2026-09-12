@@ -1,0 +1,26 @@
+{
+  "logical_non_rule": [
+    "operator"
+  ],
+  "membership_nested": [
+    "type-var"
+  ],
+  "membership_scalar": [
+    "arg-type"
+  ],
+  "membership_set": [
+    "arg-type"
+  ],
+  "ordering_collection": [
+    "operator"
+  ],
+  "ordering_string": [
+    "operator"
+  ],
+  "path_float": [
+    "index"
+  ],
+  "property_number": [
+    "arg-type"
+  ]
+}

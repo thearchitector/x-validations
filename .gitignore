@@ -6,8 +6,7 @@ __pycache__/
 *.so
 
 dist/
-target/
-crates/xvalidate-js/pkg/
+node_modules/
 
 test.py
 .coverage*

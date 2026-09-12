@@ -1,0 +1,42 @@
+{
+  "allOf": [
+    {
+      "if": {
+        "allOf": [
+          {
+            "minItems": 1,
+            "prefixItems": [
+              true
+            ],
+            "type": "array"
+          },
+          {
+            "minItems": 2,
+            "prefixItems": [
+              true,
+              true
+            ],
+            "type": "array"
+          }
+        ]
+      },
+      "then": {
+        "prefixItems": [
+          {
+            "exclusiveMaximum": {
+              "$data": "1/1"
+            },
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "title": "order"
+    }
+  ],
+  "items": {
+    "type": "integer"
+  },
+  "title": "Increasing",
+  "type": "array"
+}

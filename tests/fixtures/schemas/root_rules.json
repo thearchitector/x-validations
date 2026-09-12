@@ -1,0 +1,248 @@
+{
+  "and": {
+    "allOf": [
+      {
+        "allOf": [
+          {
+            "if": true,
+            "then": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "if": true,
+            "then": {
+              "maximum": 10,
+              "type": "number"
+            }
+          }
+        ],
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "empty_membership": {
+    "allOf": [
+      {
+        "if": true,
+        "then": false,
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "eq": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "const": 2
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "ge": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "minimum": 2,
+          "type": "number"
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "gt": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "exclusiveMinimum": 2,
+          "type": "number"
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "guard": {
+    "allOf": [
+      {
+        "if": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "then": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "title": "check"
+      }
+    ],
+    "anyOf": [
+      {
+        "type": "integer"
+      },
+      {
+        "type": "number"
+      },
+      {
+        "type": "string"
+      },
+      {
+        "type": "boolean"
+      },
+      {
+        "type": "null"
+      }
+    ],
+    "title": "Value"
+  },
+  "large_integer": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "exclusiveMaximum": 9007199254740993,
+          "type": "number"
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "le": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "maximum": 2,
+          "type": "number"
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "lt": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "exclusiveMaximum": 2,
+          "type": "number"
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "membership": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "enum": [
+            1,
+            3
+          ]
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "mixed_membership": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "enum": [
+            1,
+            true,
+            null,
+            "yes"
+          ]
+        },
+        "title": "check"
+      }
+    ],
+    "anyOf": [
+      {
+        "type": "integer"
+      },
+      {
+        "type": "number"
+      },
+      {
+        "type": "string"
+      },
+      {
+        "type": "boolean"
+      },
+      {
+        "type": "null"
+      }
+    ],
+    "title": "Value"
+  },
+  "ne": {
+    "allOf": [
+      {
+        "if": true,
+        "then": {
+          "not": {
+            "const": 2
+          }
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  },
+  "or": {
+    "allOf": [
+      {
+        "anyOf": [
+          {
+            "if": true,
+            "then": {
+              "const": 1
+            }
+          },
+          {
+            "if": true,
+            "then": {
+              "const": 3
+            }
+          }
+        ],
+        "title": "check"
+      }
+    ],
+    "title": "Value",
+    "type": "integer"
+  }
+}

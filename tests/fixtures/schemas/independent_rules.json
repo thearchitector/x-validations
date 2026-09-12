@@ -1,0 +1,24 @@
+{
+  "allOf": [
+    {
+      "errorMessage": "Must be positive",
+      "if": true,
+      "then": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "title": "positive"
+    },
+    {
+      "errorMessage": "Must be below ten",
+      "if": true,
+      "then": {
+        "exclusiveMaximum": 10,
+        "type": "number"
+      },
+      "title": "bounded"
+    }
+  ],
+  "title": "Value",
+  "type": "integer"
+}

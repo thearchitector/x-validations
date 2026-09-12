@@ -1,0 +1,52 @@
+{
+  "$defs": {
+    "Node": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "value": true
+            },
+            "required": [
+              "value"
+            ],
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "title": "positive"
+        }
+      ],
+      "properties": {
+        "child": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Node"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "title": "Value",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "Node",
+      "type": "object"
+    }
+  },
+  "$ref": "#/$defs/Node"
+}

@@ -1,0 +1,35 @@
+{
+  "$defs": {
+    "Item": {
+      "properties": {
+        "itemId": {
+          "title": "Itemid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "itemId"
+      ],
+      "title": "Item",
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "errorMessage": "IDs must be unique",
+      "if": true,
+      "then": {
+        "type": "array",
+        "uniqueItemProperties": [
+          "itemId"
+        ]
+      },
+      "title": "ids"
+    }
+  ],
+  "items": {
+    "$ref": "#/$defs/Item"
+  },
+  "title": "Items",
+  "type": "array"
+}

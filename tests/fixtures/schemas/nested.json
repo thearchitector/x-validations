@@ -1,0 +1,28 @@
+{
+  "$defs": {
+    "Amount": {
+      "allOf": [
+        {
+          "if": true,
+          "then": {
+            "exclusiveMinimum": 0,
+            "type": "number"
+          },
+          "title": "positive"
+        }
+      ],
+      "title": "Amount",
+      "type": "integer"
+    }
+  },
+  "properties": {
+    "amount": {
+      "$ref": "#/$defs/Amount"
+    }
+  },
+  "required": [
+    "amount"
+  ],
+  "title": "Parent",
+  "type": "object"
+}

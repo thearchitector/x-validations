@@ -1,0 +1,58 @@
+{
+  "allOf": [
+    {
+      "if": {
+        "allOf": [
+          {
+            "properties": {
+              "value": true
+            },
+            "required": [
+              "value"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "allowed": true
+            },
+            "required": [
+              "allowed"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "value": {
+            "enum": {
+              "$data": "1/allowed"
+            }
+          }
+        },
+        "type": "object"
+      },
+      "title": "contains"
+    }
+  ],
+  "properties": {
+    "allowed": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Allowed",
+      "type": "array"
+    },
+    "value": {
+      "title": "Value",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "value",
+    "allowed"
+  ],
+  "title": "Member",
+  "type": "object"
+}

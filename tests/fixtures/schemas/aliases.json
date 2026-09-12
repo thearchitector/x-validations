@@ -1,0 +1,114 @@
+{
+  "by_alias": {
+    "allOf": [
+      {
+        "if": {
+          "allOf": [
+            {
+              "properties": {
+                "upper": true
+              },
+              "required": [
+                "upper"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "a/b~": true
+              },
+              "required": [
+                "a/b~"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "then": {
+          "properties": {
+            "upper": {
+              "exclusiveMinimum": {
+                "$data": "1/a~1b~0"
+              },
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "title": "bounds"
+      }
+    ],
+    "properties": {
+      "a/b~": {
+        "title": "Lower",
+        "type": "integer"
+      },
+      "upper": {
+        "title": "Upper",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "a/b~",
+      "upper"
+    ],
+    "title": "Aliased",
+    "type": "object"
+  },
+  "by_name": {
+    "allOf": [
+      {
+        "if": {
+          "allOf": [
+            {
+              "properties": {
+                "high": true
+              },
+              "required": [
+                "high"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "low": true
+              },
+              "required": [
+                "low"
+              ],
+              "type": "object"
+            }
+          ]
+        },
+        "then": {
+          "properties": {
+            "high": {
+              "exclusiveMinimum": {
+                "$data": "1/low"
+              },
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "title": "bounds"
+      }
+    ],
+    "properties": {
+      "high": {
+        "title": "Upper",
+        "type": "integer"
+      },
+      "low": {
+        "title": "Lower",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "low",
+      "high"
+    ],
+    "title": "Aliased",
+    "type": "object"
+  }
+}

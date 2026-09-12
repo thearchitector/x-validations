@@ -1,9 +1,9 @@
 [project]
-name = "xvalidations"
+name = "pydantic-ajv"
 version = "0.1.0"
-description = "Extra validations in your Pydantic models for better self-describing JSON schemata."
+description = "Native Pydantic rules compiled to Ajv-compatible JSON Schema."
 readme = "README.md"
-keywords = ["json-schema", "jsonpath", "pydantic", "validation"]
+keywords = ["json-schema", "ajv", "pydantic", "validation", "json"]
 license = "BSD-3-Clause-Clear"
 license-files = ["LICENSE"]
 classifiers = [
@@ -15,7 +15,7 @@ classifiers = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "pydantic>=2,<3",
+    "pydantic>=2.12,<3",
 ]
 
 [project.urls]
@@ -23,16 +23,11 @@ Homepage = "https://github.com/thearchitector/x-validations"
 Issues = "https://github.com/thearchitector/x-validations/issues"
 Repository = "https://github.com/thearchitector/x-validations"
 
-[tool.uv.sources]
-xvalidate = { workspace = true }
-
-[tool.uv.workspace]
-members = [".", "crates/xvalidate-py"]
-
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",
-    "xvalidate",
+    "pytest-cov",
+    "pytest-crap",
     "mypy",
     "prek",
     "ruff",
@@ -40,18 +35,17 @@ dev = [
 
 [tool.pytest.ini_options]
 strict = true
-addopts = "-ra -vv --import-mode=importlib"
-testpaths = ["tests", "crates/xvalidate-py/tests"]
+addopts = "-ra -vv --crap --cov pydantic_ajv --import-mode=importlib"
+testpaths = ["tests"]
 
 [tool.mypy]
 explicit_package_bases = true
-files = ["xvalidations", "crates/xvalidate-py/xvalidate.pyi"]
+files = ["pydantic_ajv", "tests/typing_api.py"]
 strict = true
 
 [tool.ruff]
 unsafe-fixes = false
-extend-include = ["*.md"]
-extend-exclude = ["plans/"]
+extend-include = ["README.md"]
 
 [tool.ruff.lint]
 extend-select = ["ANN", "ASYNC", "PYI", "PT", "SIM", "TID", "PERF", "TRY", "PGH003"]
@@ -71,9 +65,9 @@ skip-magic-trailing-comma = true
 preview = true
 
 [tool.uv.build-backend]
-module-name = "xvalidations"
+module-name = "pydantic_ajv"
 module-root = ""
 
 [build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
+requires = ["uv_build>=0.12.13,<0.13.0"]
 build-backend = "uv_build"

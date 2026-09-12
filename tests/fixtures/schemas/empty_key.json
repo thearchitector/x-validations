@@ -1,0 +1,44 @@
+{
+  "additionalProperties": {
+    "type": "integer"
+  },
+  "allOf": [
+    {
+      "if": {
+        "allOf": [
+          {
+            "properties": {
+              "left": true
+            },
+            "required": [
+              "left"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "": true
+            },
+            "required": [
+              ""
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "left": {
+            "const": {
+              "$data": "1/"
+            }
+          }
+        },
+        "type": "object"
+      },
+      "title": "same"
+    }
+  ],
+  "title": "EmptyKey",
+  "type": "object"
+}

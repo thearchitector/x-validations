@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "Number": {
+      "properties": {
+        "kind": {
+          "const": "number",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "default": -1,
+          "title": "Value",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "Number",
+      "type": "object"
+    },
+    "Text": {
+      "properties": {
+        "kind": {
+          "const": "text",
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "text"
+      ],
+      "title": "Text",
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "allOf": [
+          {
+            "properties": {
+              "child": {
+                "properties": {
+                  "value": true
+                },
+                "required": [
+                  "value"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "child"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "child": {
+                "properties": {
+                  "kind": {
+                    "const": "number"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "child"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "child": {
+            "properties": {
+              "value": {
+                "exclusiveMinimum": 0,
+                "type": "number"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "title": "positive_number"
+    }
+  ],
+  "properties": {
+    "child": {
+      "discriminator": {
+        "mapping": {
+          "number": "#/$defs/Number",
+          "text": "#/$defs/Text"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Number"
+        },
+        {
+          "$ref": "#/$defs/Text"
+        }
+      ],
+      "title": "Child"
+    }
+  },
+  "required": [
+    "child"
+  ],
+  "title": "Choice",
+  "type": "object"
+}

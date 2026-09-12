@@ -1,0 +1,33 @@
+{
+  "ne": {
+    "additionalProperties": {
+      "type": "integer"
+    },
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "a": true
+          },
+          "required": [
+            "a"
+          ],
+          "type": "object"
+        },
+        "then": {
+          "properties": {
+            "a": {
+              "not": {
+                "const": 1
+              }
+            }
+          },
+          "type": "object"
+        },
+        "title": "check"
+      }
+    ],
+    "title": "Missing",
+    "type": "object"
+  }
+}
