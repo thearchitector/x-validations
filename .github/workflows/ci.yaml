@@ -27,4 +27,4 @@ jobs:
               run: uv run prek run --all-files --fail-fast
 
             - name: Test
-              run: uv run pytestw
+              run: uv run pytest
